@@ -329,27 +329,35 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
             self._status.set_status("Contacting readonly servers to find "
                                     "any existing shares")
         for tracker in readonly_trackers:
-            assert isinstance(tracker, ServerTracker)
-            d = tracker.ask_about_existing_shares()
-            d.addBoth(self._handle_existing_response, tracker)
+            d = self._do_inquiry(tracker)
             ds.append(d)
-            self.num_servers_contacted += 1
-            self.query_count += 1
-            self.log("asking server %s for any existing shares" %
-                     (tracker.get_name(),), level=log.NOISY)
         dl = defer.DeferredList(ds)
         dl.addCallback(lambda ign: self._loop())
         return dl
 
 
+    def _do_inquiry(self, tracker):
+        """
+        I ask a server for its existing shares, then update our internal state
+        according to the response.
+        """
+        assert isinstance(tracker, ServerTracker)
+        d = tracker.ask_about_existing_shares()
+        d.addBoth(self._handle_existing_response, tracker)
+        self.num_servers_contacted += 1
+        self.query_count += 1
+        self.log("asking server %s for any existing shares" %
+                 (tracker.get_name(),), level=log.NOISY)
+        return d
+
+
     def _handle_existing_response(self, res, tracker):
         """
-        I handle responses to the queries sent by
-        Tahoe2ServerSelector._existing_shares.
+        I handle responses to the queries sent by _do_inquiry.
         """
         serverid = tracker.get_serverid()
         if isinstance(res, failure.Failure):
-            self.log("%s got error during existing shares check: %s"
+            self.log("%s got error during inquiry: %s"
                     % (tracker.get_name(), res), level=log.UNUSUAL)
             self.error_count += 1
             self.bad_query_count += 1
