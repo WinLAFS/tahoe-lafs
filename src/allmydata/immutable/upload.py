@@ -368,9 +368,7 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
             self.log("response to get_buckets() from server %s: alreadygot=%s"
                     % (tracker.get_name(), tuple(sorted(buckets))),
                     level=log.NOISY)
-            for bucket in buckets:
-                self.preexisting_shares.setdefault(bucket, set()).add(serverid)
-                self.homeless_shares.discard(bucket)
+            self._record_existing_shares(tracker, buckets)
             self.full_count += 1
             self.bad_query_count += 1
 
@@ -534,6 +532,12 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
                 self.log(msg, level=log.OPERATIONAL)
                 return (self.use_trackers, self.preexisting_shares)
 
+    def _record_existing_shares(self, tracker, shares):
+        serverid = tracker.get_serverid()
+        for share in shares:
+            self.preexisting_shares.setdefault(share, set()).add(serverid)
+            self.homeless_shares.discard(share)
+
     def _got_response(self, res, tracker, shares_to_ask, put_tracker_here):
         if isinstance(res, failure.Failure):
             # This is unusual, and probably indicates a bug or a network
@@ -563,13 +567,11 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
                        tuple(sorted(alreadygot)), tuple(sorted(allocated))),
                     level=log.NOISY)
             progress = False
-            for s in alreadygot:
-                self.preexisting_shares.setdefault(s, set()).add(tracker.get_serverid())
-                if s in self.homeless_shares:
-                    self.homeless_shares.remove(s)
-                    progress = True
-                elif s in shares_to_ask:
-                    progress = True
+            if alreadygot.intersection(set(self.homeless_shares)):
+                progress = True
+            elif alreadygot.intersection(shares_to_ask):
+                progress = True
+            self._record_existing_shares(tracker, alreadygot)
 
             # the ServerTracker will remember which shares were allocated on
             # that peer. We just have to remember to use them.
