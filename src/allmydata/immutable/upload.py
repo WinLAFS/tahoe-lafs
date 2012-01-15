@@ -490,16 +490,16 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
 
         self.homeless_shares -= shares_to_ask
         self.query_count += 1
-        return (tracker, shares_to_ask, next_tracker_list)
+        self.put_tracker_here = next_tracker_list
+        return (tracker, shares_to_ask)
 
 
     def _loop(self):
         allocation = self._get_next_allocation()
         if allocation is not None:
-            tracker, shares_to_ask, next_tracker_list  = allocation
+            tracker, shares_to_ask = allocation
             d = tracker.query(shares_to_ask)
-            d.addBoth(self._got_response, tracker, shares_to_ask,
-                      next_tracker_list)
+            d.addBoth(self._got_response, tracker, shares_to_ask)
             return d
         else:
             # no more servers. If we haven't placed enough shares, we fail.
@@ -543,7 +543,7 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
         # that peer. We just have to remember to use them.
         self.use_trackers.add(tracker)
 
-    def _got_response(self, res, tracker, shares_to_ask, put_tracker_here):
+    def _got_response(self, res, tracker, shares_to_ask):
         if isinstance(res, failure.Failure):
             # This is unusual, and probably indicates a bug or a network
             # problem.
@@ -614,7 +614,7 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
             else:
                 # if they *were* able to accept everything, they might be
                 # willing to accept even more.
-                put_tracker_here.append(tracker)
+                self.put_tracker_here.append(tracker)
 
         # now loop
         return self._loop()
