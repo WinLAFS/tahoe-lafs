@@ -538,6 +538,11 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
             self.preexisting_shares.setdefault(share, set()).add(serverid)
             self.homeless_shares.discard(share)
 
+    def _record_allocated_shares(self, tracker, shares):
+        # the ServerTracker will remember which shares were allocated on
+        # that peer. We just have to remember to use them.
+        self.use_trackers.add(tracker)
+
     def _got_response(self, res, tracker, shares_to_ask, put_tracker_here):
         if isinstance(res, failure.Failure):
             # This is unusual, and probably indicates a bug or a network
@@ -573,11 +578,9 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
                 progress = True
             self._record_existing_shares(tracker, alreadygot)
 
-            # the ServerTracker will remember which shares were allocated on
-            # that peer. We just have to remember to use them.
             if allocated:
-                self.use_trackers.add(tracker)
                 progress = True
+            self._record_allocated_shares(tracker, allocated)
 
             if allocated or alreadygot:
                 self.serverids_with_shares.add(tracker.get_serverid())
