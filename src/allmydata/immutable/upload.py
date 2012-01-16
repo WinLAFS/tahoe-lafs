@@ -543,15 +543,38 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
         # that peer. We just have to remember to use them.
         self.use_trackers.add(tracker)
 
+    def _process_allocation_request(self, tracker, asked, present, placed):
+        self._record_existing_shares(tracker, present)
+        self._record_allocated_shares(tracker, placed)
+        not_yet_present = set(asked) - set(present)
+        still_homeless = not_yet_present - set(placed)
+        if still_homeless:
+            # In networks with lots of space, this is very unusual and
+            # probably indicates an error. In networks with servers that
+            # are full, it is merely unusual. In networks that are very
+            # full, it is common, and many uploads will fail. In most
+            # cases, this is obviously not fatal, and we'll just use some
+            # other servers.
+
+            # some shares are still homeless, keep trying to find them a
+            # home. The ones that were rejected get first priority.
+            self.homeless_shares |= still_homeless
+            # Since they were unable to accept all of our requests, so it
+            # is safe to assume that asking them again won't help.
+        else:
+            # if they *were* able to accept everything, they might be
+            # willing to accept even more.
+            self.put_tracker_here.append(tracker)
+
     def _got_response(self, res, tracker, shares_to_ask):
         if isinstance(res, failure.Failure):
             # This is unusual, and probably indicates a bug or a network
             # problem.
+            self._process_allocation_request(tracker, shares_to_ask, set([]), set([]))
             self.log("%s got error during server selection: %s" % (tracker, res),
                     level=log.UNUSUAL)
             self.error_count += 1
             self.bad_query_count += 1
-            self.homeless_shares |= shares_to_ask
             if (self.first_pass_trackers
                 or self.second_pass_trackers
                 or self.next_pass_trackers):
@@ -576,17 +599,12 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
                 progress = True
             elif alreadygot.intersection(shares_to_ask):
                 progress = True
-            self._record_existing_shares(tracker, alreadygot)
 
             if allocated:
                 progress = True
-            self._record_allocated_shares(tracker, allocated)
 
             if allocated or alreadygot:
                 self.serverids_with_shares.add(tracker.get_serverid())
-
-            not_yet_present = set(shares_to_ask) - set(alreadygot)
-            still_homeless = not_yet_present - set(allocated)
 
             if progress:
                 # They accepted at least one of the shares that we asked
@@ -598,24 +616,7 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
                 self.bad_query_count += 1
                 self.full_count += 1
 
-            if still_homeless:
-                # In networks with lots of space, this is very unusual and
-                # probably indicates an error. In networks with servers that
-                # are full, it is merely unusual. In networks that are very
-                # full, it is common, and many uploads will fail. In most
-                # cases, this is obviously not fatal, and we'll just use some
-                # other servers.
-
-                # some shares are still homeless, keep trying to find them a
-                # home. The ones that were rejected get first priority.
-                self.homeless_shares |= still_homeless
-                # Since they were unable to accept all of our requests, so it
-                # is safe to assume that asking them again won't help.
-            else:
-                # if they *were* able to accept everything, they might be
-                # willing to accept even more.
-                self.put_tracker_here.append(tracker)
-
+            self._process_allocation_request(tracker, shares_to_ask, alreadygot, allocated)
         # now loop
         return self._loop()
 
