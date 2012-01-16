@@ -238,11 +238,6 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
         self.servers_of_happiness = servers_of_happiness
         self.needed_shares = needed_shares
 
-        self.homeless_shares = set(range(total_shares))
-        self.use_trackers = set() # ServerTrackers that have shares assigned
-                                  # to them
-        self.preexisting_shares = {} # shareid => set(serverids) holding shareid
-
         # These servers have shares -- any shares -- for our SI. We keep
         # track of these to write an error message with them later.
         self.serverids_with_shares = set()
@@ -298,21 +293,8 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
                 trackers.append(st)
             return trackers
 
-        # We assign each servers/trackers into one three lists. They all
-        # start in the "first pass" list. During the first pass, as we ask
-        # each one to hold a share, we move their tracker to the "second
-        # pass" list, until the first-pass list is empty. Then during the
-        # second pass, as we ask each to hold more shares, we move their
-        # tracker to the "next pass" list, until the second-pass list is
-        # empty. Then we move everybody from the next-pass list back to the
-        # second-pass list and repeat the "second" pass (really the third,
-        # fourth, etc pass), until all shares are assigned, or we've run out
-        # of potential servers.
-        self.first_pass_trackers = _make_trackers(writeable_servers)
-        self.second_pass_trackers = [] # servers worth asking again
-        self.next_pass_trackers = [] # servers that we have asked again
-        self._started_second_pass = False
-
+        self._setup_server_tracking()
+        self._record_writeable_servers(_make_trackers(writeable_servers))
         # We don't try to allocate shares to these servers, since they've
         # said that they're incapable of storing shares of the size that we'd
         # want to store. We ask them about existing shares for this storage
@@ -334,6 +316,31 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
         dl = defer.DeferredList(ds)
         dl.addCallback(lambda ign: self._loop())
         return dl
+
+    def _setup_server_tracking(self):
+        self.homeless_shares = set(range(self.total_shares))
+        self.use_trackers = set() # ServerTrackers that have shares assigned
+                                  # to them
+        self.preexisting_shares = {} # shareid => set(serverids) holding shareid
+
+        # We assign each servers/trackers into one three lists. They all
+        # start in the "first pass" list. During the first pass, as we ask
+        # each one to hold a share, we move their tracker to the "second
+        # pass" list, until the first-pass list is empty. Then during the
+        # second pass, as we ask each to hold more shares, we move their
+        # tracker to the "next pass" list, until the second-pass list is
+        # empty. Then we move everybody from the next-pass list back to the
+        # second-pass list and repeat the "second" pass (really the third,
+        # fourth, etc pass), until all shares are assigned, or we've run out
+        # of potential servers.
+        self.first_pass_trackers = [] # servers that we haven't asked yet
+        self.second_pass_trackers = [] # servers worth asking again
+        self.next_pass_trackers = [] # servers that we have asked again
+        self._started_second_pass = False
+
+
+    def _record_writeable_servers(self, trackers):
+        self.first_pass_trackers = trackers
 
 
     def _do_inquiry(self, tracker):
