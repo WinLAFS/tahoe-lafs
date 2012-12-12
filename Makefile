@@ -76,12 +76,12 @@ TMPFS_SIZE = 500m
 
 .PHONY: tmpfstest
 tmpfstest:
-	time make _tmpfstest 'TMPDIR=$(shell mktemp -d --tmpdir=.)'
+	make _tmpfstest 'TMPDIR=$(shell mktemp -d --tmpdir=.)'
 
 .PHONY: _tmpfstest
 _tmpfstest: make-version
 	sudo mount -t tmpfs -o size=$(TMPFS_SIZE) tmpfs '$(TMPDIR)'
-	-$(TAHOE) debug trial --rterrors '--temp-directory=$(TMPDIR)/_trial_temp' $(TRIALARGS) $(TEST)
+	-time $(TAHOE) debug trial --rterrors '--temp-directory=$(TMPDIR)/_trial_temp' $(TRIALARGS) $(TEST)
 	sudo umount '$(TMPDIR)'
 	rmdir '$(TMPDIR)'
 
