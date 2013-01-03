@@ -147,7 +147,7 @@ def start(config, out=sys.stdout, err=sys.stderr):
         verb = "running"
     print >>out, "%s node in %s" % (verb, basedir)
     twistd.runApp(twistd_config)
-    # we should only reach here if --nodaemon was used
+    # we should only reach here if --nodaemon or equivalent was used
     return 0
 
 def stop(config, out=sys.stdout, err=sys.stderr):
@@ -219,7 +219,10 @@ def restart(config, stdout, stderr):
 
 def run(config, stdout, stderr):
     config.twistd_args = config.twistd_args + ("--nodaemon",)
-    # also ("--logfile", "tahoesvc.log")
+    # Previously we would do the equivalent of adding ("--logfile", "tahoesvc.log"),
+    # but that redirects stdout/stderr which is often unhelpful, and the user can
+    # add that option explicitly if they want.
+
     return start(config, stdout, stderr)
 
 
