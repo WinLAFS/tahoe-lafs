@@ -27,7 +27,7 @@ class StartOptions(BasedirOptions):
         return "Usage:  %s [global-opts] %s [options] [NODEDIR] [twistd_options]" % (self.command_name, self.subcommand_name)
 
     def getUsage(self, width=None):
-        t = BaseOptions.getUsage(self, width) + "\n"
+        t = BasedirOptions.getUsage(self, width) + "\n"
         t += format_twisted_options(MyTwistdConfig())
         return t
 
