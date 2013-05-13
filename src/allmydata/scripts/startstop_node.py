@@ -18,9 +18,6 @@ class StartOptions(BasedirOptions):
         # --nodaemon looks like a basedir. So you can either use 'tahoe
         # start' or 'tahoe start BASEDIR --TWISTD-OPTIONS'.
         BasedirOptions.parseArgs(self, basedir)
-        if not os.path.isdir(self['basedir']):
-            raise usage.UsageError("--basedir '%s' doesn't exist" %
-                                   quote_output(self['basedir']))
         self.twistd_args = twistd_args
 
     def getSynopsis(self):
