@@ -3,8 +3,6 @@ import simplejson
 
 from twisted.web import http, static
 from twisted.internet import defer
-from nevow import url, rend
-from nevow.inevow import IRequest
 
 from allmydata.interfaces import ExistingChildError, SDMF_VERSION, MDMF_VERSION
 from allmydata.monitor import Monitor
@@ -18,7 +16,8 @@ from allmydata.blacklist import FileProhibited, ProhibitedNode
 from allmydata.web.common import text_plain, WebError, RenderMixin, \
      boolean_of_arg, get_arg, should_create_intermediate_directories, \
      MyExceptionHandler, parse_replace_arg, parse_offset_arg, \
-     get_format, get_mutable_type
+     get_format, get_mutable_type, \
+     Page, IRequest, renderer, url
 from allmydata.web.check_results import CheckResultsRenderer, \
      CheckAndRepairResultsRenderer, LiteralCheckResultsRenderer
 from allmydata.web.info import MoreInfo
@@ -87,9 +86,9 @@ class ReplaceMeMixin:
         return d
 
 
-class PlaceHolderNodeHandler(RenderMixin, rend.Page, ReplaceMeMixin):
+class PlaceHolderNodeHandler(RenderMixin, Page, ReplaceMeMixin):
     def __init__(self, client, parentnode, name):
-        rend.Page.__init__(self)
+        Page.__init__(self)
         self.client = client
         assert parentnode
         self.parentnode = parentnode
@@ -135,9 +134,9 @@ class PlaceHolderNodeHandler(RenderMixin, rend.Page, ReplaceMeMixin):
         return d
 
 
-class FileNodeHandler(RenderMixin, rend.Page, ReplaceMeMixin):
+class FileNodeHandler(RenderMixin, Page, ReplaceMeMixin):
     def __init__(self, client, node, parentnode=None, name=None):
-        rend.Page.__init__(self)
+        Page.__init__(self)
         self.client = client
         assert node
         self.node = node
@@ -346,9 +345,9 @@ class FileNodeHandler(RenderMixin, rend.Page, ReplaceMeMixin):
         return d
 
 
-class FileDownloader(rend.Page):
+class FileDownloader(Page):
     def __init__(self, filenode, filename):
-        rend.Page.__init__(self)
+        Page.__init__(self)
         self.filenode = filenode
         self.filename = filename
 

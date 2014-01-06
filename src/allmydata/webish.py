@@ -2,11 +2,14 @@ import re, time
 from twisted.application import service, strports, internet
 from twisted.web import http
 from twisted.internet import defer
-from nevow import appserver, inevow, static
+from nevow import appserver
+
 from allmydata.util import log, fileutil
 
 from allmydata.web import introweb, root
-from allmydata.web.common import IOpHandleTable, MyExceptionHandler
+from allmydata.web.common import IOpHandleTable, MyExceptionHandler, \
+    File, ICanHandleException
+
 
 # we must override twisted.web.http.Request.requestReceived with a version
 # that doesn't use cgi.parse_multipart() . Since we actually use Nevow, we
@@ -146,9 +149,9 @@ class WebishServer(service.MultiService):
         self.webport = webport
         self.site = site = appserver.NevowSite(self.root)
         self.site.requestFactory = MyRequest
-        self.site.remember(MyExceptionHandler(), inevow.ICanHandleException)
+        self.site.remember(MyExceptionHandler(), ICanHandleException)
         if staticdir:
-            self.root.putChild("static", static.File(staticdir))
+            self.root.putChild("static", File(staticdir))
         if re.search(r'^\d', webport):
             webport = "tcp:"+webport # twisted warns about bare "0" or "3456"
         s = strports.service(webport, site)

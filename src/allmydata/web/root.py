@@ -2,10 +2,6 @@ import time, os
 
 from twisted.internet import address
 from twisted.web import http
-from nevow import rend, url, tags as T
-from nevow.inevow import IRequest
-from nevow.static import File as nevow_File # TODO: merge with static.File?
-from nevow.util import resource_filename
 
 import allmydata # to display import path
 from allmydata import get_package_versions_string
@@ -14,15 +10,16 @@ from allmydata.interfaces import IFileNode
 from allmydata.web import filenode, directory, unlinked, status, operations
 from allmydata.web import storage
 from allmydata.web.common import abbreviate_size, getxmlfile, WebError, \
-     get_arg, RenderMixin, get_format, get_mutable_type, TIME_FORMAT
+     get_arg, RenderMixin, get_format, get_mutable_type, TIME_FORMAT, \
+     Page, File, IRequest, renderer, T, url, resource_filename
 
 
-class URIHandler(RenderMixin, rend.Page):
+class URIHandler(RenderMixin, Page):
     # I live at /uri . There are several operations defined on /uri itself,
     # mostly involved with creation of unlinked files and directories.
 
     def __init__(self, client):
-        rend.Page.__init__(self, client)
+        Page.__init__(self, client)
         self.client = client
 
     def render_GET(self, ctx):
@@ -33,7 +30,7 @@ class URIHandler(RenderMixin, rend.Page):
         there = url.URL.fromContext(ctx)
         there = there.clear("uri")
         # I thought about escaping the childcap that we attach to the URL
-        # here, but it seems that nevow does that for us.
+        # here, but it seems that is done for us.
         there = there.child(uri)
         return there
 
@@ -89,12 +86,12 @@ class URIHandler(RenderMixin, rend.Page):
             raise WebError("'%s' is not a valid file- or directory- cap"
                            % name)
 
-class FileHandler(rend.Page):
+class FileHandler(Page):
     # I handle /file/$FILECAP[/IGNORED] , which provides a URL from which a
     # file can be downloaded correctly by tools like "wget".
 
     def __init__(self, client):
-        rend.Page.__init__(self, client)
+        Page.__init__(self, client)
         self.client = client
 
     def childFactory(self, ctx, name):
@@ -116,7 +113,7 @@ class FileHandler(rend.Page):
         raise WebError("/file must be followed by a file-cap and a name",
                        http.NOT_FOUND)
 
-class IncidentReporter(RenderMixin, rend.Page):
+class IncidentReporter(RenderMixin, Page):
     def render_POST(self, ctx):
         req = IRequest(ctx)
         log.msg(format="User reports incident through web page: %(details)s",
@@ -127,13 +124,13 @@ class IncidentReporter(RenderMixin, rend.Page):
 
 SPACE = u"\u00A0"*2
 
-class Root(rend.Page):
+class Root(Page):
 
     addSlash = True
     docFactory = getxmlfile("welcome.xhtml")
 
     def __init__(self, client, clock=None):
-        rend.Page.__init__(self, client)
+        Page.__init__(self, client)
         self.client = client
         # If set, clock is a twisted.internet.task.Clock that the tests
         # use to test ophandle expiration.
@@ -153,7 +150,7 @@ class Root(rend.Page):
         self.child_statistics = status.Statistics(client.stats_provider)
         static_dir = resource_filename("allmydata.web", "static")
         for filen in os.listdir(static_dir):
-            self.putChild(filen, nevow_File(os.path.join(static_dir, filen)))
+            self.putChild(filen, File(os.path.join(static_dir, filen)))
 
     def child_helper_status(self, ctx):
         # the Helper isn't attached until after the Tub starts, so this child

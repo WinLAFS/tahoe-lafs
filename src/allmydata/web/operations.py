@@ -1,8 +1,7 @@
 
 import time
 from zope.interface import implements
-from nevow import rend, url, tags as T
-from nevow.inevow import IRequest
+
 from twisted.python.failure import Failure
 from twisted.internet import reactor, defer
 from twisted.web.http import NOT_FOUND
@@ -10,7 +9,8 @@ from twisted.web.html import escape
 from twisted.application import service
 
 from allmydata.web.common import IOpHandleTable, WebError, \
-     get_root, get_arg, boolean_of_arg
+     get_root, get_arg, boolean_of_arg, \
+     Page, IRequest, renderer, T, url
 
 MINUTE = 60
 HOUR = 60*MINUTE
@@ -18,7 +18,7 @@ DAY = 24*HOUR
 
 (MONITOR, RENDERER, WHEN_ADDED) = range(3)
 
-class OphandleTable(rend.Page, service.Service):
+class OphandleTable(Page, service.Service):
     implements(IOpHandleTable)
 
     UNCOLLECTED_HANDLE_LIFETIME = 4*DAY

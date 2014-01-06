@@ -1,9 +1,10 @@
 
 import time
 import simplejson
-from nevow import rend, inevow, tags as T
+
 from twisted.web import http, html
-from allmydata.web.common import getxmlfile, get_arg, get_root, WebError
+from allmydata.web.common import getxmlfile, get_arg, get_root, WebError, \
+   Page, IRequest, renderer, T
 from allmydata.web.operations import ReloadMixin
 from allmydata.interfaces import ICheckAndRepairResults, ICheckResults
 from allmydata.util import base32, dictutil
@@ -166,14 +167,14 @@ class ResultsBase:
         return [html.escape(w) for w in s]
 
     def want_json(self, ctx):
-        output = get_arg(inevow.IRequest(ctx), "output", "").lower()
+        output = get_arg(IRequest(ctx), "output", "").lower()
         if output.lower() == "json":
             return True
         return False
 
     def _render_si_link(self, ctx, storage_index):
         si_s = base32.b2a(storage_index)
-        req = inevow.IRequest(ctx)
+        req = IRequest(ctx)
         ophandle = req.prepath[-1]
         target = "%s/operations/%s/%s" % (get_root(ctx), ophandle, si_s)
         output = get_arg(ctx, "output")
@@ -181,25 +182,25 @@ class ResultsBase:
             target = target + "?output=%s" % output
         return T.a(href=target)[si_s]
 
-class LiteralCheckResultsRenderer(rend.Page, ResultsBase):
+class LiteralCheckResultsRenderer(Page, ResultsBase):
     docFactory = getxmlfile("literal-check-results.xhtml")
 
     def __init__(self, client):
         self.client = client
-        rend.Page.__init__(self, client)
+        Page.__init__(self, client)
 
     def renderHTTP(self, ctx):
         if self.want_json(ctx):
             return self.json(ctx)
-        return rend.Page.renderHTTP(self, ctx)
+        return Page.renderHTTP(self, ctx)
 
     def json(self, ctx):
-        inevow.IRequest(ctx).setHeader("content-type", "text/plain")
+        IRequest(ctx).setHeader("content-type", "text/plain")
         data = json_check_results(None)
         return simplejson.dumps(data, indent=1) + "\n"
 
     def render_return(self, ctx, data):
-        req = inevow.IRequest(ctx)
+        req = IRequest(ctx)
         return_to = get_arg(req, "return_to", None)
         if return_to:
             return T.div[T.a(href=return_to)["Return to file."]]
@@ -210,28 +211,28 @@ class CheckerBase:
     def renderHTTP(self, ctx):
         if self.want_json(ctx):
             return self.json(ctx)
-        return rend.Page.renderHTTP(self, ctx)
+        return Page.renderHTTP(self, ctx)
 
     def render_storage_index(self, ctx, data):
         return self.r.get_storage_index_string()
 
     def render_return(self, ctx, data):
-        req = inevow.IRequest(ctx)
+        req = IRequest(ctx)
         return_to = get_arg(req, "return_to", None)
         if return_to:
             return T.div[T.a(href=return_to)["Return to file/directory."]]
         return ""
 
-class CheckResultsRenderer(CheckerBase, rend.Page, ResultsBase):
+class CheckResultsRenderer(CheckerBase, Page, ResultsBase):
     docFactory = getxmlfile("check-results.xhtml")
 
     def __init__(self, client, results):
         self.client = client
         self.r = ICheckResults(results)
-        rend.Page.__init__(self, results)
+        Page.__init__(self, results)
 
     def json(self, ctx):
-        inevow.IRequest(ctx).setHeader("content-type", "text/plain")
+        IRequest(ctx).setHeader("content-type", "text/plain")
         data = json_check_results(self.r)
         return simplejson.dumps(data, indent=1) + "\n"
 
@@ -265,7 +266,7 @@ class CheckResultsRenderer(CheckerBase, rend.Page, ResultsBase):
         cr = self._render_results(ctx, data)
         return ctx.tag[cr]
 
-class CheckAndRepairResultsRenderer(CheckerBase, rend.Page, ResultsBase):
+class CheckAndRepairResultsRenderer(CheckerBase, Page, ResultsBase):
     docFactory = getxmlfile("check-and-repair-results.xhtml")
 
     def __init__(self, client, results):
@@ -273,10 +274,10 @@ class CheckAndRepairResultsRenderer(CheckerBase, rend.Page, ResultsBase):
         self.r = None
         if results:
             self.r = ICheckAndRepairResults(results)
-        rend.Page.__init__(self, results)
+        Page.__init__(self, results)
 
     def json(self, ctx):
-        inevow.IRequest(ctx).setHeader("content-type", "text/plain")
+        IRequest(ctx).setHeader("content-type", "text/plain")
         data = json_check_and_repair_results(self.r)
         return simplejson.dumps(data, indent=1) + "\n"
 
@@ -312,7 +313,7 @@ class CheckAndRepairResultsRenderer(CheckerBase, rend.Page, ResultsBase):
         return ""
 
 
-class DeepCheckResultsRenderer(rend.Page, ResultsBase, ReloadMixin):
+class DeepCheckResultsRenderer(Page, ResultsBase, ReloadMixin):
     docFactory = getxmlfile("deep-check-results.xhtml")
 
     def __init__(self, client, monitor):
@@ -336,10 +337,10 @@ class DeepCheckResultsRenderer(rend.Page, ResultsBase, ReloadMixin):
     def renderHTTP(self, ctx):
         if self.want_json(ctx):
             return self.json(ctx)
-        return rend.Page.renderHTTP(self, ctx)
+        return Page.renderHTTP(self, ctx)
 
     def json(self, ctx):
-        inevow.IRequest(ctx).setHeader("content-type", "text/plain")
+        IRequest(ctx).setHeader("content-type", "text/plain")
         data = {}
         data["finished"] = self.monitor.is_finished()
         res = self.monitor.get_status()
@@ -437,7 +438,7 @@ class DeepCheckResultsRenderer(rend.Page, ResultsBase, ReloadMixin):
         return ctx.tag
 
     def render_return(self, ctx, data):
-        req = inevow.IRequest(ctx)
+        req = IRequest(ctx)
         return_to = get_arg(req, "return_to", None)
         if return_to:
             return T.div[T.a(href=return_to)["Return to file/directory."]]
@@ -459,11 +460,11 @@ class DeepCheckResultsRenderer(rend.Page, ResultsBase, ReloadMixin):
         return ctx.tag
 
     def render_runtime(self, ctx, data):
-        req = inevow.IRequest(ctx)
+        req = IRequest(ctx)
         runtime = time.time() - req.processing_started_timestamp
         return ctx.tag["runtime: %s seconds" % runtime]
 
-class DeepCheckAndRepairResultsRenderer(rend.Page, ResultsBase, ReloadMixin):
+class DeepCheckAndRepairResultsRenderer(Page, ResultsBase, ReloadMixin):
     docFactory = getxmlfile("deep-check-and-repair-results.xhtml")
 
     def __init__(self, client, monitor):
@@ -487,10 +488,10 @@ class DeepCheckAndRepairResultsRenderer(rend.Page, ResultsBase, ReloadMixin):
     def renderHTTP(self, ctx):
         if self.want_json(ctx):
             return self.json(ctx)
-        return rend.Page.renderHTTP(self, ctx)
+        return Page.renderHTTP(self, ctx)
 
     def json(self, ctx):
-        inevow.IRequest(ctx).setHeader("content-type", "text/plain")
+        IRequest(ctx).setHeader("content-type", "text/plain")
         res = self.monitor.get_status()
         data = {}
         data["finished"] = self.monitor.is_finished()
@@ -616,7 +617,7 @@ class DeepCheckAndRepairResultsRenderer(rend.Page, ResultsBase, ReloadMixin):
 
 
     def render_return(self, ctx, data):
-        req = inevow.IRequest(ctx)
+        req = IRequest(ctx)
         return_to = get_arg(req, "return_to", None)
         if return_to:
             return T.div[T.a(href=return_to)["Return to file/directory."]]
@@ -644,6 +645,6 @@ class DeepCheckAndRepairResultsRenderer(rend.Page, ResultsBase, ReloadMixin):
         return ctx.tag
 
     def render_runtime(self, ctx, data):
-        req = inevow.IRequest(ctx)
+        req = IRequest(ctx)
         runtime = time.time() - req.processing_started_timestamp
         return ctx.tag["runtime: %s seconds" % runtime]

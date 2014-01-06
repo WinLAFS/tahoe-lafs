@@ -1,15 +1,14 @@
 
 import os, urllib
 
-from nevow import rend, tags as T
-from nevow.inevow import IRequest
-
 from allmydata.util import base32
 from allmydata.interfaces import IDirectoryNode, IFileNode, MDMF_VERSION
-from allmydata.web.common import getxmlfile
+from allmydata.web.common import getxmlfile, \
+    Page, IRequest, renderer, T
 from allmydata.mutable.common import UnrecoverableFileError # TODO: move
 
-class MoreInfo(rend.Page):
+
+class MoreInfo(Page):
     addSlash = False
     docFactory = getxmlfile("info.xhtml")
 

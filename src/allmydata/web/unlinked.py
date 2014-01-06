@@ -2,11 +2,12 @@
 import urllib
 from twisted.web import http
 from twisted.internet import defer
-from nevow import rend, url, tags as T
+
 from allmydata.immutable.upload import FileHandle
 from allmydata.mutable.publish import MutableFileHandle
 from allmydata.web.common import getxmlfile, get_arg, boolean_of_arg, \
-     convert_children_json, WebError, get_format, get_mutable_type
+     convert_children_json, WebError, get_format, get_mutable_type, \
+     Page, renderer, T, url
 from allmydata.web import status
 
 def PUTUnlinkedCHK(req, client):
@@ -59,27 +60,30 @@ def POSTUnlinkedCHK(req, client):
     return d
 
 
-class UploadResultsPage(status.UploadResultsRendererMixin, rend.Page):
+class UploadResultsPage(status.UploadResultsRendererMixin, Page):
     """'POST /uri', to create an unlinked file."""
     docFactory = getxmlfile("upload-results.xhtml")
 
     def __init__(self, upload_results):
-        rend.Page.__init__(self)
+        Page.__init__(self)
         self.results = upload_results
 
     def upload_results(self):
         return defer.succeed(self.results)
 
+    @renderer
     def data_done(self, ctx, data):
         d = self.upload_results()
         d.addCallback(lambda res: "done!")
         return d
 
+    @renderer
     def data_uri(self, ctx, data):
         d = self.upload_results()
         d.addCallback(lambda res: res.get_uri())
         return d
 
+    @renderer
     def render_download_link(self, ctx, data):
         d = self.upload_results()
         d.addCallback(lambda res:

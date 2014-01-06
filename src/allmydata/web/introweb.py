@@ -1,16 +1,14 @@
 
-import time, os
-from nevow import rend, inevow
-from nevow.static import File as nevow_File
-from nevow.util import resource_filename
+import time, os, simplejson
+
 import allmydata
-import simplejson
 from allmydata import get_package_versions_string
 from allmydata.util import idlib
-from allmydata.web.common import getxmlfile, get_arg, TIME_FORMAT
+from allmydata.web.common import getxmlfile, get_arg, TIME_FORMAT, \
+    Page, IRequest, File, resource_filename
 
 
-class IntroducerRoot(rend.Page):
+class IntroducerRoot(Page):
 
     addSlash = True
     docFactory = getxmlfile("introducer.xhtml")
@@ -20,16 +18,16 @@ class IntroducerRoot(rend.Page):
     def __init__(self, introducer_node):
         self.introducer_node = introducer_node
         self.introducer_service = introducer_node.getServiceNamed("introducer")
-        rend.Page.__init__(self, introducer_node)
+        Page.__init__(self, introducer_node)
         static_dir = resource_filename("allmydata.web", "static")
         for filen in os.listdir(static_dir):
-            self.putChild(filen, nevow_File(os.path.join(static_dir, filen)))
+            self.putChild(filen, File(os.path.join(static_dir, filen)))
 
     def renderHTTP(self, ctx):
-        t = get_arg(inevow.IRequest(ctx), "t")
+        t = get_arg(IRequest(ctx), "t")
         if t == "json":
             return self.render_JSON(ctx)
-        return rend.Page.renderHTTP(self, ctx)
+        return Page.renderHTTP(self, ctx)
 
     def render_JSON(self, ctx):
         res = {}

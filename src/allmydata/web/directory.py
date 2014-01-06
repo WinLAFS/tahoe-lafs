@@ -7,8 +7,6 @@ from twisted.internet import defer
 from twisted.internet.interfaces import IPushProducer
 from twisted.python.failure import Failure
 from twisted.web import http
-from nevow import url, rend, inevow, tags as T
-from nevow.inevow import IRequest
 
 from foolscap.api import fireEventually
 
@@ -26,7 +24,8 @@ from allmydata.web.common import text_plain, WebError, \
      boolean_of_arg, get_arg, get_root, parse_replace_arg, \
      should_create_intermediate_directories, \
      getxmlfile, RenderMixin, humanize_failure, convert_children_json, \
-     get_format, get_mutable_type
+     get_format, get_mutable_type, \
+     Page, IRequest, renderer, T, url
 from allmydata.web.filenode import ReplaceMeMixin, \
      FileNodeHandler, PlaceHolderNodeHandler
 from allmydata.web.check_results import CheckResultsRenderer, \
@@ -51,11 +50,11 @@ def make_handler_for(node, client, parentnode=None, name=None):
         return DirectoryNodeHandler(client, node, parentnode, name)
     return UnknownNodeHandler(client, node, parentnode, name)
 
-class DirectoryNodeHandler(RenderMixin, rend.Page, ReplaceMeMixin):
+class DirectoryNodeHandler(RenderMixin, Page, ReplaceMeMixin):
     addSlash = True
 
     def __init__(self, client, node, parentnode=None, name=None):
-        rend.Page.__init__(self)
+        Page.__init__(self)
         self.client = client
         assert node
         self.node = node
@@ -164,8 +163,7 @@ class DirectoryNodeHandler(RenderMixin, rend.Page, ReplaceMeMixin):
                 return ""
 
         if not t:
-            # render the directory as HTML, using the docFactory and Nevow's
-            # whole templating thing.
+            # render the directory as HTML, using the docFactory and templating thing.
             return DirectoryAsHTML(self.node,
                                    self.client.mutable_file_default)
 
@@ -331,7 +329,7 @@ class DirectoryNodeHandler(RenderMixin, rend.Page, ReplaceMeMixin):
         d.addBoth(_maybe_got_node)
         # now we have a placeholder or a filenodehandler, and we can just
         # delegate to it. We could return the resource back out of
-        # DirectoryNodeHandler.renderHTTP, and nevow would recurse into it,
+        # DirectoryNodeHandler.renderHTTP, and it would be recursed into,
         # but the addCallback() that handles when_done= would break.
         d.addCallback(lambda child: child.renderHTTP(ctx))
         return d
@@ -575,14 +573,14 @@ def abbreviated_dirnode(dirnode):
 
 SPACE = u"\u00A0"*2
 
-class DirectoryAsHTML(rend.Page):
+class DirectoryAsHTML(Page):
     # The remainder of this class is to render the directory into
     # human+browser -oriented HTML.
     docFactory = getxmlfile("directory.xhtml")
     addSlash = True
 
     def __init__(self, node, default_mutable_format):
-        rend.Page.__init__(self)
+        Page.__init__(self)
         self.node = node
 
         assert default_mutable_format in (MDMF_VERSION, SDMF_VERSION)
@@ -934,7 +932,7 @@ def DirectoryURI(ctx, dirnode):
 def DirectoryReadonlyURI(ctx, dirnode):
     return text_plain(dirnode.get_readonly_uri(), ctx)
 
-class RenameForm(rend.Page):
+class RenameForm(Page):
     addSlash = True
     docFactory = getxmlfile("rename-form.xhtml")
 
@@ -960,7 +958,7 @@ class RenameForm(rend.Page):
         ctx.tag.attributes['value'] = name
         return ctx.tag
 
-class ManifestResults(rend.Page, ReloadMixin):
+class ManifestResults(Page, ReloadMixin):
     docFactory = getxmlfile("manifest.xhtml")
 
     def __init__(self, client, monitor):
@@ -968,13 +966,13 @@ class ManifestResults(rend.Page, ReloadMixin):
         self.monitor = monitor
 
     def renderHTTP(self, ctx):
-        req = inevow.IRequest(ctx)
+        req = IRequest(ctx)
         output = get_arg(req, "output", "html").lower()
         if output == "text":
             return self.text(req)
         if output == "json":
             return self.json(req)
-        return rend.Page.renderHTTP(self, ctx)
+        return Page.renderHTTP(self, ctx)
 
     def slashify_path(self, path):
         if not path:
@@ -1052,13 +1050,13 @@ class ManifestResults(rend.Page, ReloadMixin):
             ctx.fillSlots("cap", "")
         return ctx.tag
 
-class DeepSizeResults(rend.Page):
+class DeepSizeResults(Page):
     def __init__(self, client, monitor):
         self.client = client
         self.monitor = monitor
 
     def renderHTTP(self, ctx):
-        req = inevow.IRequest(ctx)
+        req = IRequest(ctx)
         output = get_arg(req, "output", "html").lower()
         req.setHeader("content-type", "text/plain")
         if output == "json":
@@ -1080,14 +1078,14 @@ class DeepSizeResults(rend.Page):
                   }
         return simplejson.dumps(status)
 
-class DeepStatsResults(rend.Page):
+class DeepStatsResults(Page):
     def __init__(self, client, monitor):
         self.client = client
         self.monitor = monitor
 
     def renderHTTP(self, ctx):
         # JSON only
-        inevow.IRequest(ctx).setHeader("content-type", "text/plain")
+        IRequest(ctx).setHeader("content-type", "text/plain")
         s = self.monitor.get_status().copy()
         s["finished"] = self.monitor.is_finished()
         return simplejson.dumps(s, indent=1)
@@ -1228,9 +1226,9 @@ class DeepCheckStreamer(dirnode.DeepStats):
         return ""
 
 
-class UnknownNodeHandler(RenderMixin, rend.Page):
+class UnknownNodeHandler(RenderMixin, Page):
     def __init__(self, client, node, parentnode=None, name=None):
-        rend.Page.__init__(self)
+        Page.__init__(self)
         assert node
         self.node = node
         self.parentnode = parentnode

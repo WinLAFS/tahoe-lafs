@@ -3,7 +3,10 @@ import re
 from twisted.internet import defer
 from twisted.web import client
 from nevow.testutil import FakeRequest
-from nevow import inevow, context
+from nevow import context
+
+from allmydata.web.common import IRequest, IData
+
 
 class WebRenderingMixin:
     # d=page.renderString() or s=page.renderSynchronously() will exercise
@@ -22,8 +25,8 @@ class WebRenderingMixin:
 
     def make_context(self, req):
         ctx = context.RequestContext(tag=req)
-        ctx.remember(req, inevow.IRequest)
-        ctx.remember(None, inevow.IData)
+        ctx.remember(req, IRequest)
+        ctx.remember(None, IData)
         ctx = context.WovenContext(parent=ctx, precompile=False)
         return ctx
 

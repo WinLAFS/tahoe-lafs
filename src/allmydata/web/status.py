@@ -2,34 +2,39 @@
 import time, pprint, itertools
 import simplejson
 from twisted.internet import defer
-from nevow import rend, inevow, tags as T
+
 from allmydata.util import base32, idlib
 from allmydata.web.common import getxmlfile, get_arg, \
-     abbreviate_time, abbreviate_rate, abbreviate_size, plural, compute_rate
+     abbreviate_time, abbreviate_rate, abbreviate_size, plural, compute_rate, \
+     Page, IRequest, renderer, T, url
 from allmydata.interfaces import IUploadStatus, IDownloadStatus, \
      IPublishStatus, IRetrieveStatus, IServermapUpdaterStatus
 
 class RateAndTimeMixin:
-
+    @renderer
     def render_time(self, ctx, data):
         return abbreviate_time(data)
 
+    @renderer
     def render_rate(self, ctx, data):
         return abbreviate_rate(data)
 
 class UploadResultsRendererMixin(RateAndTimeMixin):
     # this requires a method named 'upload_results'
 
+    @renderer
     def render_pushed_shares(self, ctx, data):
         d = self.upload_results()
         d.addCallback(lambda res: res.get_pushed_shares())
         return d
 
+    @renderer
     def render_preexisting_shares(self, ctx, data):
         d = self.upload_results()
         d.addCallback(lambda res: res.get_preexisting_shares())
         return d
 
+    @renderer
     def render_sharemap(self, ctx, data):
         d = self.upload_results()
         d.addCallback(lambda res: res.get_sharemap())
@@ -44,6 +49,7 @@ class UploadResultsRendererMixin(RateAndTimeMixin):
         d.addCallback(_render)
         return d
 
+    @renderer
     def render_servermap(self, ctx, data):
         d = self.upload_results()
         d.addCallback(lambda res: res.get_servermap())
@@ -59,6 +65,7 @@ class UploadResultsRendererMixin(RateAndTimeMixin):
         d.addCallback(_render)
         return d
 
+    @renderer
     def data_file_size(self, ctx, data):
         d = self.upload_results()
         d.addCallback(lambda res: res.get_file_size())
@@ -69,33 +76,43 @@ class UploadResultsRendererMixin(RateAndTimeMixin):
         d.addCallback(lambda res: res.get_timings().get(name))
         return d
 
+    @renderer
     def data_time_total(self, ctx, data):
         return self._get_time("total")
 
+    @renderer
     def data_time_storage_index(self, ctx, data):
         return self._get_time("storage_index")
 
+    @renderer
     def data_time_contacting_helper(self, ctx, data):
         return self._get_time("contacting_helper")
 
+    @renderer
     def data_time_cumulative_fetch(self, ctx, data):
         return self._get_time("cumulative_fetch")
 
+    @renderer
     def data_time_helper_total(self, ctx, data):
         return self._get_time("helper_total")
 
+    @renderer
     def data_time_peer_selection(self, ctx, data):
         return self._get_time("peer_selection")
 
+    @renderer
     def data_time_total_encode_and_push(self, ctx, data):
         return self._get_time("total_encode_and_push")
 
+    @renderer
     def data_time_cumulative_encoding(self, ctx, data):
         return self._get_time("cumulative_encoding")
 
+    @renderer
     def data_time_cumulative_sending(self, ctx, data):
         return self._get_time("cumulative_sending")
 
+    @renderer
     def data_time_hashes_and_close(self, ctx, data):
         return self._get_time("hashes_and_close")
 
@@ -108,18 +125,23 @@ class UploadResultsRendererMixin(RateAndTimeMixin):
         d.addCallback(_convert)
         return d
 
+    @renderer
     def data_rate_total(self, ctx, data):
         return self._get_rate("total")
 
+    @renderer
     def data_rate_storage_index(self, ctx, data):
         return self._get_rate("storage_index")
 
+    @renderer
     def data_rate_encode(self, ctx, data):
         return self._get_rate("cumulative_encoding")
 
+    @renderer
     def data_rate_push(self, ctx, data):
         return self._get_rate("cumulative_sending")
 
+    @renderer
     def data_rate_encode_and_push(self, ctx, data):
         d = self.upload_results()
         def _convert(r):
@@ -133,6 +155,7 @@ class UploadResultsRendererMixin(RateAndTimeMixin):
         d.addCallback(_convert)
         return d
 
+    @renderer
     def data_rate_ciphertext_fetch(self, ctx, data):
         d = self.upload_results()
         def _convert(r):
@@ -142,16 +165,17 @@ class UploadResultsRendererMixin(RateAndTimeMixin):
         d.addCallback(_convert)
         return d
 
-class UploadStatusPage(UploadResultsRendererMixin, rend.Page):
+class UploadStatusPage(UploadResultsRendererMixin, Page):
     docFactory = getxmlfile("upload-status.xhtml")
 
     def __init__(self, data):
-        rend.Page.__init__(self, data)
+        Page.__init__(self, data)
         self.upload_status = data
 
     def upload_results(self):
         return defer.maybeDeferred(self.upload_status.get_results)
 
+    @renderer
     def render_results(self, ctx, data):
         d = self.upload_results()
         def _got_results(results):
@@ -161,49 +185,58 @@ class UploadStatusPage(UploadResultsRendererMixin, rend.Page):
         d.addCallback(_got_results)
         return d
 
+    @renderer
     def render_started(self, ctx, data):
         TIME_FORMAT = "%H:%M:%S %d-%b-%Y"
         started_s = time.strftime(TIME_FORMAT,
                                   time.localtime(data.get_started()))
         return started_s
 
+    @renderer
     def render_si(self, ctx, data):
         si_s = base32.b2a_or_none(data.get_storage_index())
         if si_s is None:
             si_s = "(None)"
         return si_s
 
+    @renderer
     def render_helper(self, ctx, data):
         return {True: "Yes",
                 False: "No"}[data.using_helper()]
 
+    @renderer
     def render_total_size(self, ctx, data):
         size = data.get_size()
         if size is None:
             return "(unknown)"
         return size
 
+    @renderer
     def render_progress_hash(self, ctx, data):
         progress = data.get_progress()[0]
         # TODO: make an ascii-art bar
         return "%.1f%%" % (100.0 * progress)
 
+    @renderer
     def render_progress_ciphertext(self, ctx, data):
         progress = data.get_progress()[1]
         # TODO: make an ascii-art bar
         return "%.1f%%" % (100.0 * progress)
 
+    @renderer
     def render_progress_encode_push(self, ctx, data):
         progress = data.get_progress()[2]
         # TODO: make an ascii-art bar
         return "%.1f%%" % (100.0 * progress)
 
+    @renderer
     def render_status(self, ctx, data):
         return data.get_status()
 
 class DownloadResultsRendererMixin(RateAndTimeMixin):
     # this requires a method named 'download_results'
 
+    @renderer
     def render_servermap(self, ctx, data):
         d = self.download_results()
         d.addCallback(lambda res: res.servermap)
@@ -222,6 +255,7 @@ class DownloadResultsRendererMixin(RateAndTimeMixin):
         d.addCallback(_render)
         return d
 
+    @renderer
     def render_servers_used(self, ctx, data):
         d = self.download_results()
         d.addCallback(lambda res: res.servers_used)
@@ -234,6 +268,7 @@ class DownloadResultsRendererMixin(RateAndTimeMixin):
         d.addCallback(_got)
         return d
 
+    @renderer
     def render_problems(self, ctx, data):
         d = self.download_results()
         d.addCallback(lambda res: res.server_problems)
@@ -248,6 +283,7 @@ class DownloadResultsRendererMixin(RateAndTimeMixin):
         d.addCallback(_got)
         return d
 
+    @renderer
     def data_file_size(self, ctx, data):
         d = self.download_results()
         d.addCallback(lambda res: res.file_size)
@@ -258,30 +294,39 @@ class DownloadResultsRendererMixin(RateAndTimeMixin):
         d.addCallback(lambda res: res.timings.get(name))
         return d
 
+    @renderer
     def data_time_total(self, ctx, data):
         return self._get_time("total")
 
+    @renderer
     def data_time_peer_selection(self, ctx, data):
         return self._get_time("peer_selection")
 
+    @renderer
     def data_time_uri_extension(self, ctx, data):
         return self._get_time("uri_extension")
 
+    @renderer
     def data_time_hashtrees(self, ctx, data):
         return self._get_time("hashtrees")
 
+    @renderer
     def data_time_segments(self, ctx, data):
         return self._get_time("segments")
 
+    @renderer
     def data_time_cumulative_fetch(self, ctx, data):
         return self._get_time("cumulative_fetch")
 
+    @renderer
     def data_time_cumulative_decode(self, ctx, data):
         return self._get_time("cumulative_decode")
 
+    @renderer
     def data_time_cumulative_decrypt(self, ctx, data):
         return self._get_time("cumulative_decrypt")
 
+    @renderer
     def data_time_paused(self, ctx, data):
         return self._get_time("paused")
 
@@ -294,21 +339,27 @@ class DownloadResultsRendererMixin(RateAndTimeMixin):
         d.addCallback(_convert)
         return d
 
+    @renderer
     def data_rate_total(self, ctx, data):
         return self._get_rate("total")
 
+    @renderer
     def data_rate_segments(self, ctx, data):
         return self._get_rate("segments")
 
+    @renderer
     def data_rate_fetch(self, ctx, data):
         return self._get_rate("cumulative_fetch")
 
+    @renderer
     def data_rate_decode(self, ctx, data):
         return self._get_rate("cumulative_decode")
 
+    @renderer
     def data_rate_decrypt(self, ctx, data):
         return self._get_rate("cumulative_decrypt")
 
+    @renderer
     def render_server_timings(self, ctx, data):
         d = self.download_results()
         d.addCallback(lambda res: res.timings.get("fetch_per_server"))
@@ -325,11 +376,11 @@ class DownloadResultsRendererMixin(RateAndTimeMixin):
         d.addCallback(_render)
         return d
 
-class DownloadStatusPage(DownloadResultsRendererMixin, rend.Page):
+class DownloadStatusPage(DownloadResultsRendererMixin, Page):
     docFactory = getxmlfile("download-status.xhtml")
 
     def __init__(self, data):
-        rend.Page.__init__(self, data)
+        Page.__init__(self, data)
         self.download_status = data
 
     def child_timeline(self, ctx):
@@ -438,7 +489,7 @@ class DownloadStatusPage(DownloadResultsRendererMixin, rend.Page):
         return new_events, highest_rownums
 
     def child_event_json(self, ctx):
-        inevow.IRequest(ctx).setHeader("content-type", "text/plain")
+        IRequest(ctx).setHeader("content-type", "text/plain")
         data = { } # this will be returned to the GET
         ds = self.download_status
 
@@ -474,8 +525,8 @@ class DownloadStatusPage(DownloadResultsRendererMixin, rend.Page):
         data["bounds"] = {"min": ds.first_timestamp, "max": ds.last_timestamp}
         return simplejson.dumps(data, indent=1) + "\n"
 
+    @renderer
     def render_timeline_link(self, ctx, data):
-        from nevow import url
         return T.a(href=url.URL.fromContext(ctx).child("timeline"))["timeline"]
 
     def _rate_and_time(self, bytes, seconds):
@@ -485,6 +536,7 @@ class DownloadStatusPage(DownloadResultsRendererMixin, rend.Page):
             return T.span(title=rate)[time_s]
         return T.span[time_s]
 
+    @renderer
     def render_events(self, ctx, data):
         if not self.download_status.storage_index:
             return
@@ -604,6 +656,7 @@ class DownloadStatusPage(DownloadResultsRendererMixin, rend.Page):
             return min(ord(c) / 2 + 0x80, 0xff)
         return "#%02x%02x%02x" % (m(peerid[0]), m(peerid[1]), m(peerid[2]))
 
+    @renderer
     def render_results(self, ctx, data):
         d = self.download_results()
         def _got_results(results):
@@ -613,110 +666,130 @@ class DownloadStatusPage(DownloadResultsRendererMixin, rend.Page):
         d.addCallback(_got_results)
         return d
 
+    @renderer
     def render_started(self, ctx, data):
         TIME_FORMAT = "%H:%M:%S %d-%b-%Y"
         started_s = time.strftime(TIME_FORMAT,
                                   time.localtime(data.get_started()))
         return started_s + " (%s)" % data.get_started()
 
+    @renderer
     def render_si(self, ctx, data):
         si_s = base32.b2a_or_none(data.get_storage_index())
         if si_s is None:
             si_s = "(None)"
         return si_s
 
+    @renderer
     def render_helper(self, ctx, data):
         return {True: "Yes",
                 False: "No"}[data.using_helper()]
 
+    @renderer
     def render_total_size(self, ctx, data):
         size = data.get_size()
         if size is None:
             return "(unknown)"
         return size
 
+    @renderer
     def render_progress(self, ctx, data):
         progress = data.get_progress()
         # TODO: make an ascii-art bar
         return "%.1f%%" % (100.0 * progress)
 
+    @renderer
     def render_status(self, ctx, data):
         return data.get_status()
 
-class DownloadStatusTimelinePage(rend.Page):
+class DownloadStatusTimelinePage(Page):
     docFactory = getxmlfile("download-status-timeline.xhtml")
 
+    @renderer
     def render_started(self, ctx, data):
         TIME_FORMAT = "%H:%M:%S %d-%b-%Y"
         started_s = time.strftime(TIME_FORMAT,
                                   time.localtime(data.get_started()))
         return started_s + " (%s)" % data.get_started()
 
+    @renderer
     def render_si(self, ctx, data):
         si_s = base32.b2a_or_none(data.get_storage_index())
         if si_s is None:
             si_s = "(None)"
         return si_s
 
+    @renderer
     def render_helper(self, ctx, data):
         return {True: "Yes",
                 False: "No"}[data.using_helper()]
 
+    @renderer
     def render_total_size(self, ctx, data):
         size = data.get_size()
         if size is None:
             return "(unknown)"
         return size
 
+    @renderer
     def render_progress(self, ctx, data):
         progress = data.get_progress()
         # TODO: make an ascii-art bar
         return "%.1f%%" % (100.0 * progress)
 
+    @renderer
     def render_status(self, ctx, data):
         return data.get_status()
 
-class RetrieveStatusPage(rend.Page, RateAndTimeMixin):
+class RetrieveStatusPage(Page, RateAndTimeMixin):
     docFactory = getxmlfile("retrieve-status.xhtml")
 
     def __init__(self, data):
-        rend.Page.__init__(self, data)
+        Page.__init__(self, data)
         self.retrieve_status = data
 
+    @renderer
     def render_started(self, ctx, data):
         TIME_FORMAT = "%H:%M:%S %d-%b-%Y"
         started_s = time.strftime(TIME_FORMAT,
                                   time.localtime(data.get_started()))
         return started_s
 
+    @renderer
     def render_si(self, ctx, data):
         si_s = base32.b2a_or_none(data.get_storage_index())
         if si_s is None:
             si_s = "(None)"
         return si_s
 
+    @renderer
     def render_helper(self, ctx, data):
         return {True: "Yes",
                 False: "No"}[data.using_helper()]
 
+    @renderer
     def render_current_size(self, ctx, data):
         size = data.get_size()
         if size is None:
             size = "(unknown)"
         return size
 
+    @renderer
     def render_progress(self, ctx, data):
         progress = data.get_progress()
         # TODO: make an ascii-art bar
         return "%.1f%%" % (100.0 * progress)
 
+    @renderer
     def render_status(self, ctx, data):
         return data.get_status()
 
+    @renderer
     def render_encoding(self, ctx, data):
         k, n = data.get_encoding()
         return ctx.tag["Encoding: %s of %s" % (k, n)]
 
+    @renderer
     def render_problems(self, ctx, data):
         problems = data.get_problems()
         if not problems:
@@ -732,26 +805,35 @@ class RetrieveStatusPage(rend.Page, RateAndTimeMixin):
         time = self.retrieve_status.timings.get(name)
         return compute_rate(file_size, time)
 
+    @renderer
     def data_time_total(self, ctx, data):
         return self.retrieve_status.timings.get("total")
+    @renderer
     def data_rate_total(self, ctx, data):
         return self._get_rate(data, "total")
 
+    @renderer
     def data_time_fetch(self, ctx, data):
         return self.retrieve_status.timings.get("fetch")
+    @renderer
     def data_rate_fetch(self, ctx, data):
         return self._get_rate(data, "fetch")
 
+    @renderer
     def data_time_decode(self, ctx, data):
         return self.retrieve_status.timings.get("decode")
+    @renderer
     def data_rate_decode(self, ctx, data):
         return self._get_rate(data, "decode")
 
+    @renderer
     def data_time_decrypt(self, ctx, data):
         return self.retrieve_status.timings.get("decrypt")
+    @renderer
     def data_rate_decrypt(self, ctx, data):
         return self._get_rate(data, "decrypt")
 
+    @renderer
     def render_server_timings(self, ctx, data):
         per_server = self.retrieve_status.timings.get("fetch_per_server")
         if not per_server:
@@ -764,47 +846,55 @@ class RetrieveStatusPage(rend.Page, RateAndTimeMixin):
         return T.li["Per-Server Fetch Response Times: ", l]
 
 
-class PublishStatusPage(rend.Page, RateAndTimeMixin):
+class PublishStatusPage(Page, RateAndTimeMixin):
     docFactory = getxmlfile("publish-status.xhtml")
 
     def __init__(self, data):
-        rend.Page.__init__(self, data)
+        Page.__init__(self, data)
         self.publish_status = data
 
+    @renderer
     def render_started(self, ctx, data):
         TIME_FORMAT = "%H:%M:%S %d-%b-%Y"
         started_s = time.strftime(TIME_FORMAT,
                                   time.localtime(data.get_started()))
         return started_s
 
+    @renderer
     def render_si(self, ctx, data):
         si_s = base32.b2a_or_none(data.get_storage_index())
         if si_s is None:
             si_s = "(None)"
         return si_s
 
+    @renderer
     def render_helper(self, ctx, data):
         return {True: "Yes",
                 False: "No"}[data.using_helper()]
 
+    @renderer
     def render_current_size(self, ctx, data):
         size = data.get_size()
         if size is None:
             size = "(unknown)"
         return size
 
+    @renderer
     def render_progress(self, ctx, data):
         progress = data.get_progress()
         # TODO: make an ascii-art bar
         return "%.1f%%" % (100.0 * progress)
 
+    @renderer
     def render_status(self, ctx, data):
         return data.get_status()
 
+    @renderer
     def render_encoding(self, ctx, data):
         k, n = data.get_encoding()
         return ctx.tag["Encoding: %s of %s" % (k, n)]
 
+    @renderer
     def render_sharemap(self, ctx, data):
         servermap = data.get_servermap()
         if servermap is None:
@@ -817,6 +907,7 @@ class PublishStatusPage(rend.Page, RateAndTimeMixin):
                               for server in sharemap[shnum]])]]
         return ctx.tag["Sharemap:", l]
 
+    @renderer
     def render_problems(self, ctx, data):
         problems = data.get_problems()
         if not problems:
@@ -834,36 +925,49 @@ class PublishStatusPage(rend.Page, RateAndTimeMixin):
         time = self.publish_status.timings.get(name)
         return compute_rate(file_size, time)
 
+    @renderer
     def data_time_total(self, ctx, data):
         return self.publish_status.timings.get("total")
+    @renderer
     def data_rate_total(self, ctx, data):
         return self._get_rate(data, "total")
 
+    @renderer
     def data_time_setup(self, ctx, data):
         return self.publish_status.timings.get("setup")
 
+    @renderer
     def data_time_encrypt(self, ctx, data):
         return self.publish_status.timings.get("encrypt")
+    @renderer
     def data_rate_encrypt(self, ctx, data):
         return self._get_rate(data, "encrypt")
 
+    @renderer
     def data_time_encode(self, ctx, data):
         return self.publish_status.timings.get("encode")
+    @renderer
     def data_rate_encode(self, ctx, data):
         return self._get_rate(data, "encode")
 
+    @renderer
     def data_time_pack(self, ctx, data):
         return self.publish_status.timings.get("pack")
+    @renderer
     def data_rate_pack(self, ctx, data):
         return self._get_rate(data, "pack")
+    @renderer
     def data_time_sign(self, ctx, data):
         return self.publish_status.timings.get("sign")
 
+    @renderer
     def data_time_push(self, ctx, data):
         return self.publish_status.timings.get("push")
+    @renderer
     def data_rate_push(self, ctx, data):
         return self._get_rate(data, "push")
 
+    @renderer
     def render_server_timings(self, ctx, data):
         per_server = self.publish_status.timings.get("send_per_server")
         if not per_server:
@@ -875,19 +979,21 @@ class PublishStatusPage(rend.Page, RateAndTimeMixin):
             l[T.li["[%s]: %s" % (server.get_name(), times_s)]]
         return T.li["Per-Server Response Times: ", l]
 
-class MapupdateStatusPage(rend.Page, RateAndTimeMixin):
+class MapupdateStatusPage(Page, RateAndTimeMixin):
     docFactory = getxmlfile("map-update-status.xhtml")
 
     def __init__(self, data):
-        rend.Page.__init__(self, data)
+        Page.__init__(self, data)
         self.update_status = data
 
+    @renderer
     def render_started(self, ctx, data):
         TIME_FORMAT = "%H:%M:%S %d-%b-%Y"
         started_s = time.strftime(TIME_FORMAT,
                                   time.localtime(data.get_started()))
         return started_s
 
+    @renderer
     def render_finished(self, ctx, data):
         when = data.get_finished()
         if not when:
@@ -897,24 +1003,29 @@ class MapupdateStatusPage(rend.Page, RateAndTimeMixin):
                                   time.localtime(data.get_finished()))
         return started_s
 
+    @renderer
     def render_si(self, ctx, data):
         si_s = base32.b2a_or_none(data.get_storage_index())
         if si_s is None:
             si_s = "(None)"
         return si_s
 
+    @renderer
     def render_helper(self, ctx, data):
         return {True: "Yes",
                 False: "No"}[data.using_helper()]
 
+    @renderer
     def render_progress(self, ctx, data):
         progress = data.get_progress()
         # TODO: make an ascii-art bar
         return "%.1f%%" % (100.0 * progress)
 
+    @renderer
     def render_status(self, ctx, data):
         return data.get_status()
 
+    @renderer
     def render_problems(self, ctx, data):
         problems = data.problems
         if not problems:
@@ -925,6 +1036,7 @@ class MapupdateStatusPage(rend.Page, RateAndTimeMixin):
             l[T.li["[%s]: %s" % (peerid_s, problems[peerid])]]
         return ctx.tag["Server Problems:", l]
 
+    @renderer
     def render_privkey_from(self, ctx, data):
         server = data.get_privkey_from()
         if server:
@@ -932,15 +1044,19 @@ class MapupdateStatusPage(rend.Page, RateAndTimeMixin):
         else:
             return ""
 
+    @renderer
     def data_time_total(self, ctx, data):
         return self.update_status.timings.get("total")
 
+    @renderer
     def data_time_initial_queries(self, ctx, data):
         return self.update_status.timings.get("initial_queries")
 
+    @renderer
     def data_time_cumulative_verify(self, ctx, data):
         return self.update_status.timings.get("cumulative_verify")
 
+    @renderer
     def render_server_timings(self, ctx, data):
         per_server = self.update_status.timings.get("per_server")
         if not per_server:
@@ -963,6 +1079,7 @@ class MapupdateStatusPage(rend.Page, RateAndTimeMixin):
             l[T.li["[%s]: %s" % (server.get_name(), times_s)]]
         return T.li["Per-Server Response Times: ", l]
 
+    @renderer
     def render_timing_chart(self, ctx, data):
         imageurl = self._timing_chart()
         return ctx.tag[imageurl]
@@ -1034,20 +1151,20 @@ class MapupdateStatusPage(rend.Page, RateAndTimeMixin):
         return T.img(src=url,border="1",align="right", float="right")
 
 
-class Status(rend.Page):
+class Status(Page):
     docFactory = getxmlfile("status.xhtml")
     addSlash = True
 
     def __init__(self, history):
-        rend.Page.__init__(self, history)
+        Page.__init__(self, history)
         self.history = history
 
     def renderHTTP(self, ctx):
-        req = inevow.IRequest(ctx)
+        req = IRequest(ctx)
         t = get_arg(req, "t")
         if t == "json":
             return self.json(req)
-        return rend.Page.renderHTTP(self, ctx)
+        return Page.renderHTTP(self, ctx)
 
     def json(self, req):
         req.setHeader("content-type", "text/plain")
@@ -1087,6 +1204,7 @@ class Status(rend.Page):
                                h.list_all_helper_statuses(),
                                )
 
+    @renderer
     def data_active_operations(self, ctx, data):
         return self._get_active_operations()
 
@@ -1096,6 +1214,7 @@ class Status(rend.Page):
                   if s.get_active()]
         return active
 
+    @renderer
     def data_recent_operations(self, ctx, data):
         return self._get_recent_operations()
 
@@ -1107,6 +1226,7 @@ class Status(rend.Page):
         recent.reverse()
         return recent
 
+    @renderer
     def render_row(self, ctx, data):
         s = data
 
@@ -1189,19 +1309,19 @@ class Status(rend.Page):
                     return RetrieveStatusPage(s)
 
 
-class HelperStatus(rend.Page):
+class HelperStatus(Page):
     docFactory = getxmlfile("helper.xhtml")
 
     def __init__(self, helper):
-        rend.Page.__init__(self, helper)
+        Page.__init__(self, helper)
         self.helper = helper
 
     def renderHTTP(self, ctx):
-        req = inevow.IRequest(ctx)
+        req = IRequest(ctx)
         t = get_arg(req, "t")
         if t == "json":
             return self.render_JSON(req)
-        return rend.Page.renderHTTP(self, ctx)
+        return Page.renderHTTP(self, ctx)
 
     def data_helper_stats(self, ctx, data):
         return self.helper.get_stats()
@@ -1213,99 +1333,119 @@ class HelperStatus(rend.Page):
             return simplejson.dumps(stats, indent=1) + "\n"
         return simplejson.dumps({}) + "\n"
 
+    @renderer
     def render_active_uploads(self, ctx, data):
         return data["chk_upload_helper.active_uploads"]
 
+    @renderer
     def render_incoming(self, ctx, data):
         return "%d bytes in %d files" % (data["chk_upload_helper.incoming_size"],
                                          data["chk_upload_helper.incoming_count"])
 
+    @renderer
     def render_encoding(self, ctx, data):
         return "%d bytes in %d files" % (data["chk_upload_helper.encoding_size"],
                                          data["chk_upload_helper.encoding_count"])
 
+    @renderer
     def render_upload_requests(self, ctx, data):
         return str(data["chk_upload_helper.upload_requests"])
 
+    @renderer
     def render_upload_already_present(self, ctx, data):
         return str(data["chk_upload_helper.upload_already_present"])
 
+    @renderer
     def render_upload_need_upload(self, ctx, data):
         return str(data["chk_upload_helper.upload_need_upload"])
 
+    @renderer
     def render_upload_bytes_fetched(self, ctx, data):
         return str(data["chk_upload_helper.fetched_bytes"])
 
+    @renderer
     def render_upload_bytes_encoded(self, ctx, data):
         return str(data["chk_upload_helper.encoded_bytes"])
 
 
-class Statistics(rend.Page):
+class Statistics(Page):
     docFactory = getxmlfile("statistics.xhtml")
 
     def __init__(self, provider):
-        rend.Page.__init__(self, provider)
+        Page.__init__(self, provider)
         self.provider = provider
 
     def renderHTTP(self, ctx):
-        req = inevow.IRequest(ctx)
+        req = IRequest(ctx)
         t = get_arg(req, "t")
         if t == "json":
             stats = self.provider.get_stats()
             req.setHeader("content-type", "text/plain")
             return simplejson.dumps(stats, indent=1) + "\n"
-        return rend.Page.renderHTTP(self, ctx)
+        return Page.renderHTTP(self, ctx)
 
+    @renderer
     def data_get_stats(self, ctx, data):
         return self.provider.get_stats()
 
+    @renderer
     def render_load_average(self, ctx, data):
         return str(data["stats"].get("load_monitor.avg_load"))
 
+    @renderer
     def render_peak_load(self, ctx, data):
         return str(data["stats"].get("load_monitor.max_load"))
 
+    @renderer
     def render_uploads(self, ctx, data):
         files = data["counters"].get("uploader.files_uploaded", 0)
         bytes = data["counters"].get("uploader.bytes_uploaded", 0)
         return ("%s files / %s bytes (%s)" %
                 (files, bytes, abbreviate_size(bytes)))
 
+    @renderer
     def render_downloads(self, ctx, data):
         files = data["counters"].get("downloader.files_downloaded", 0)
         bytes = data["counters"].get("downloader.bytes_downloaded", 0)
         return ("%s files / %s bytes (%s)" %
                 (files, bytes, abbreviate_size(bytes)))
 
+    @renderer
     def render_publishes(self, ctx, data):
         files = data["counters"].get("mutable.files_published", 0)
         bytes = data["counters"].get("mutable.bytes_published", 0)
         return "%s files / %s bytes (%s)" % (files, bytes,
                                              abbreviate_size(bytes))
 
+    @renderer
     def render_retrieves(self, ctx, data):
         files = data["counters"].get("mutable.files_retrieved", 0)
         bytes = data["counters"].get("mutable.bytes_retrieved", 0)
         return "%s files / %s bytes (%s)" % (files, bytes,
                                              abbreviate_size(bytes))
 
+    @renderer
     def render_drop_monitored(self, ctx, data):
         dirs = data["counters"].get("drop_upload.dirs_monitored", 0)
         return "%s directories" % (dirs,)
 
+    @renderer
     def render_drop_uploads(self, ctx, data):
         # TODO: bytes uploaded
         files = data["counters"].get("drop_upload.files_uploaded", 0)
         return "%s files" % (files,)
 
+    @renderer
     def render_drop_queued(self, ctx, data):
         files = data["counters"].get("drop_upload.files_queued", 0)
         return "%s files" % (files,)
 
+    @renderer
     def render_drop_failed(self, ctx, data):
         files = data["counters"].get("drop_upload.files_failed", 0)
         return "%s files" % (files,)
 
+    @renderer
     def render_raw(self, ctx, data):
         raw = pprint.pformat(data)
         return ctx.tag[raw]

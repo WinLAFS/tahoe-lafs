@@ -11,9 +11,6 @@ from twisted.python import failure, log
 
 from foolscap.api import fireEventually, flushEventualQueue
 
-from nevow.util import escapeToXML
-from nevow import rend
-
 from allmydata import interfaces, uri, webish, dirnode
 from allmydata.storage.shares import get_share_file
 from allmydata.storage_client import StorageFarmBroker, StubServer
@@ -23,6 +20,7 @@ from allmydata.dirnode import DirectoryNode
 from allmydata.nodemaker import NodeMaker
 from allmydata.unknown import UnknownNode
 from allmydata.web import status, common
+from allmydata.web.common import Page, escapeToXML
 from allmydata.scripts.debug import CorruptShareOptions, corrupt_share
 from allmydata.util import fileutil, base32, hashutil
 from allmydata.util.consumer import download_to_data
@@ -5856,6 +5854,6 @@ class Grid(GridTestMixin, WebErrorMixin, ShouldFailMixin, testutil.ReallyEqualMi
 
 class CompletelyUnhandledError(Exception):
     pass
-class ErrorBoom(rend.Page):
+class ErrorBoom(Page):
     def beforeRender(self, ctx):
         raise CompletelyUnhandledError("whoops")

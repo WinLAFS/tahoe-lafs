@@ -3,9 +3,19 @@ import simplejson
 from twisted.web import http, server
 from twisted.python import log
 from zope.interface import Interface
-from nevow import loaders, appserver
-from nevow.inevow import IRequest
-from nevow.util import resource_filename
+from nevow import loaders, appserver, url
+from nevow import tags as T
+from nevow.rend import Page
+from nevow.static import File
+from nevow.inevow import IRequest, IData, ICanHandleException
+from nevow.util import resource_filename, escapeToXML
+#from twisted.web.resource import Resource as Page
+#from twisted.web.static import File
+#from twisted.web.iweb import IRequest
+#from twisted.web.template import renderer
+#from twisted.web.template import tags as T
+#from allmydata.util import url
+
 from allmydata import blacklist
 from allmydata.interfaces import ExistingChildError, NoSuchChildError, \
      FileTooLargeError, NotEnoughSharesError, NoSharesError, \
@@ -14,6 +24,10 @@ from allmydata.interfaces import ExistingChildError, NoSuchChildError, \
 from allmydata.mutable.common import UnrecoverableFileError
 from allmydata.util import abbreviate
 from allmydata.util.encodingutil import to_str, quote_output
+
+
+def renderer(func):
+    return func
 
 
 TIME_FORMAT = "%H:%M:%S %d-%b-%Y"
