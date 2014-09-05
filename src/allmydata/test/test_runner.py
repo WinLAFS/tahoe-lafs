@@ -689,8 +689,7 @@ class RunNode(common_util.SignalMixin, unittest.TestCase, pollmixin.PollMixin,
         def _cb3(res):
             out, err, rc_or_sig = res
             self.failUnlessEqual(rc_or_sig, 1)
-            self.failUnless("--basedir" in out, out)
-            self.failUnless("doesn't exist" in out, out)
+            self.failUnlessIn("does not look like a directory at all", err)
         d.addCallback(_cb3)
         return d
 
