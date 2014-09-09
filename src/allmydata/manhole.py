@@ -1,8 +1,8 @@
 
 # this is adapted from my code in Buildbot  -warner
 
-import os.path
 import binascii, base64
+
 from twisted.python import log
 from twisted.application import service, strports
 from twisted.cred import checkers, portal
@@ -63,7 +63,7 @@ class AuthorizedKeysChecker(conchc.SSHPublicKeyDatabase):
     """
 
     def __init__(self, authorized_keys_file):
-        self.authorized_keys_file = os.path.expanduser(authorized_keys_file)
+        self.authorized_keys_file = authorized_keys_file
 
     def checkKey(self, credentials):
         f = open(self.authorized_keys_file)
@@ -244,14 +244,12 @@ class AuthorizedKeysManhole(_BaseManhole):
         'tcp:12345:interface=127.0.0.1'. Bare integers are treated as a
         simple tcp port.
 
-        @param keyfile: the name of a file (relative to the buildmaster's
-                        basedir) that contains SSH public keys of authorized
-                        users, one per line. This is the exact same format
-                        as used by sshd in ~/.ssh/authorized_keys .
+        @param keyfile: the path of a file that contains SSH public keys of
+                        authorized users, one per line. This is the exact
+                        same format as used by sshd in ~/.ssh/authorized_keys .
+                        The path should be absolute.
         """
 
-        # TODO: expanduser this, and make it relative to the buildmaster's
-        # basedir
         self.keyfile = keyfile
         c = AuthorizedKeysChecker(keyfile)
         _BaseManhole.__init__(self, port, c)
