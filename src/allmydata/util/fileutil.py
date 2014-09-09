@@ -218,15 +218,18 @@ def rm_dir(dirname):
         raise OSError, excs
 
 
-def remove_if_possible(f):
+def remove_if_possible(path):
+    #precondition_abspath(path)
+
     try:
-        remove(f)
+        remove(path)
     except:
         pass
 
 def du(basedir):
-    size = 0
+    #precondition_abspath(basedir)
 
+    size = 0
     for root, dirs, files in os.walk(basedir):
         for f in files:
             fn = os.path.join(root, f)
@@ -237,19 +240,26 @@ def du(basedir):
 def move_into_place(source, dest):
     """Atomically replace a file, or as near to it as the platform allows.
     The dest file may or may not exist."""
+    #precondition_abspath(source)
+    #precondition_abspath(dest)
+
     if "win32" in sys.platform.lower():
         remove_if_possible(dest)
     os.rename(source, dest)
 
 def write_atomically(target, contents, mode="b"):
-    f = open(target+".tmp", "w"+mode)
+    #precondition_abspath(target)
+
+    f = open(target + u".tmp", "w"+mode)
     try:
         f.write(contents)
     finally:
         f.close()
-    move_into_place(target+".tmp", target)
+    move_into_place(target + u".tmp", target)
 
 def write(path, data, mode="wb"):
+    #precondition_abspath(path)
+
     wf = open(path, mode)
     try:
         wf.write(data)
@@ -257,6 +267,8 @@ def write(path, data, mode="wb"):
         wf.close()
 
 def read(path):
+    #precondition_abspath(path)
+
     rf = open(path, "rb")
     try:
         return rf.read()
