@@ -263,9 +263,11 @@ def read(path):
     finally:
         rf.close()
 
-def put_file(pathname, inf):
+def put_file(path, inf):
+    precondition_abspath(path)
+
     # TODO: create temporary file and move into place?
-    outf = open(os.path.expanduser(pathname), "wb")
+    outf = open(path, "wb")
     try:
         while True:
             data = inf.read(32768)
@@ -405,8 +407,6 @@ def windows_getenv(name):
     n = GetEnvironmentVariableW(name, None, 0)
     if n <= 0:
         err = GetLastError()
-        if err == 42:
-            return None
         raise OSError("Windows error %d attempting to read environment variable %r"
                       % (err, name))
 

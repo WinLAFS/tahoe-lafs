@@ -1,9 +1,13 @@
 import os
+
 from zope.interface import implements
 from twisted.web.client import getPage
 from twisted.internet import defer
 from twisted.cred import error, checkers, credentials
+
 from allmydata.util import base32
+from allmydata.util.fileutil import abspath_expanduser_unicode
+
 
 class NeedRootcapLookupScheme(Exception):
     """Accountname+Password-based access schemes require some kind of
@@ -24,7 +28,7 @@ class AccountFileChecker:
         self.passwords = {}
         self.pubkeys = {}
         self.rootcaps = {}
-        for line in open(os.path.expanduser(accountfile), "r"):
+        for line in open(abspath_expanduser_unicode(accountfile), "r"):
             line = line.strip()
             if line.startswith("#") or not line:
                 continue
