@@ -35,8 +35,8 @@ build:
 .PHONY: build-osx-pkg
 build-osx-pkg:
 	$(PYTHON) setup.py build
-	find support -name allmydata-tahoe.egg-link -execdir rm -f -- '{}' +
-	find support -name easy-install.pth -execdir sed -i 's|^.*/src$$||' '{}' +
+	find support -name allmydata-tahoe.egg-link -execdir sh -c "echo >> {}; echo /Applications/tahoe.app/src >> {}" \;
+	find support -name easy-install.pth -execdir sed -i 's|^.*/src$$|../../../../src|' '{}' \;
 	touch .built
 
 # create component pkg
