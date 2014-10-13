@@ -64,12 +64,12 @@ def test_osx_pkg(pkgfile):
 
     try:
         basedir = os.getcwd()
-        cmd = ['bin/' + appname, '--version-and-path']
+        cmd = ['bin/tahoe', '--version-and-path']
         callit = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
         rc = callit.wait()
         if rc != 0:
-            raise Exception("FAIL: $appname --version-and-path returned non-zero exit code: %r" % (rc,))
+            raise Exception("FAIL: '%s' returned non-zero exit code: %r" % (" ".join(cmd), rc))
         stdouttxt = callit.stdout.read()
 
         PKG_VER_PATH_RE=re.compile("^(\S+): ([^\(]+)\((.+?)\)$", re.UNICODE)
