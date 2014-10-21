@@ -86,16 +86,11 @@ def identify_node_type(basedir):
             break
     else:
         return None
-    if "client" in tac:
-        return "client"
-    elif "introducer" in tac:
-        return "introducer"
-    elif "key-generator" in tac:
-        return "key-generator"
-    elif "stats-gatherer" in tac:
-        return "stats-gatherer"
-    else:
-        return None
+
+    for t in ("client", "introducer", "key-generator", "stats-gatherer"):
+        if t in tac:
+            return t
+    return None
 
 def start(config, out=sys.stdout, err=sys.stderr):
     basedir = config['basedir']
@@ -151,9 +146,11 @@ def start(config, out=sys.stdout, err=sys.stderr):
     # For Tahoe, we don't need to do anything with the child, so we can just
     # let it exit.
 
-    verb = "starting"
     if "--nodaemon" in twistd_args:
         verb = "running"
+    else:
+        verb = "starting"
+
     print >>out, "%s node in %s" % (verb, basedir)
     twistd.runApp(twistd_config)
     # we should only reach here if --nodaemon or equivalent was used
