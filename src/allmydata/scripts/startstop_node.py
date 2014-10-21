@@ -125,25 +125,31 @@ def start(config, out=sys.stdout, err=sys.stderr):
         return 1
     twistd_config.loadedPlugins = {"StartTahoeNode": StartTahoeNodePlugin(nodetype, basedir)}
 
-    # Unless --nodaemon was provided, the twistd.runApp() below spawns off a
-    # child process, and the parent calls os._exit(0), so there's no way for
-    # us to get control afterwards, even with 'except SystemExit'. If
-    # application setup fails (e.g. ImportError), runApp() will raise an
-    # exception.
+    # On Unix-like platforms:
+    #   Unless --nodaemon was provided, the twistd.runApp() below spawns off a
+    #   child process, and the parent calls os._exit(0), so there's no way for
+    #   us to get control afterwards, even with 'except SystemExit'. If
+    #   application setup fails (e.g. ImportError), runApp() will raise an
+    #   exception.
     #
-    # So if we wanted to do anything with the running child, we'd have two
-    # options:
+    #   So if we wanted to do anything with the running child, we'd have two
+    #   options:
     #
-    #  * fork first, and have our child wait for the runApp() child to get
-    #    running. (note: just fork(). This is easier than fork+exec, since we
-    #    don't have to get PATH and PYTHONPATH set up, since we're not
-    #    starting a *different* process, just cloning a new instance of the
-    #    current process)
-    #  * or have the user run a separate command some time after this one
-    #    exits.
+    #    * fork first, and have our child wait for the runApp() child to get
+    #      running. (note: just fork(). This is easier than fork+exec, since we
+    #      don't have to get PATH and PYTHONPATH set up, since we're not
+    #      starting a *different* process, just cloning a new instance of the
+    #      current process)
+    #    * or have the user run a separate command some time after this one
+    #      exits.
     #
-    # For Tahoe, we don't need to do anything with the child, so we can just
-    # let it exit.
+    #   For Tahoe, we don't need to do anything with the child, so we can just
+    #   let it exit.
+    #
+    # On Windows:
+    #   twistd does not fork; it just runs in the current process whether or not
+    #   --nodaemon is specified. (As on Unix, --nodaemon does have the side effect
+    #   of causing us to log to stdout/stderr.)
 
     if "--nodaemon" in twistd_args or sys.platform == "win32":
         verb = "running"
