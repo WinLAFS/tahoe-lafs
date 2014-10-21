@@ -121,8 +121,7 @@ def start(config, out=sys.stdout, err=sys.stderr):
     except usage.error, ue:
         # these arguments were unsuitable for 'twistd'
         print >>err, config
-        print >>err, format_twisted_options(twistd_config)
-        print >>err, "tahoe %s: %s\n" % (config.subcommand_name, ue)
+        print >>err, "tahoe %s: usage error from twistd: %s\n" % (config.subcommand_name, ue)
         return 1
     twistd_config.loadedPlugins = {"StartTahoeNode": StartTahoeNodePlugin(nodetype, basedir)}
 
@@ -146,7 +145,7 @@ def start(config, out=sys.stdout, err=sys.stderr):
     # For Tahoe, we don't need to do anything with the child, so we can just
     # let it exit.
 
-    if "--nodaemon" in twistd_args:
+    if "--nodaemon" in twistd_args or sys.platform == "win32":
         verb = "running"
     else:
         verb = "starting"
