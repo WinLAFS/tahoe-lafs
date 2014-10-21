@@ -7,28 +7,40 @@ from allmydata.util import fileutil
 from allmydata.util.encodingutil import listdir_unicode, quote_output
 
 
-def format_twisted_options(config):
-    return "twistd %s\n" % (str(config).partition("\n")[2].partition("\n\n")[0],)
-
 class StartOptions(BasedirOptions):
     subcommand_name = "start"
 
     def parseArgs(self, basedir=None, *twistd_args):
-        # this can't handle e.g. 'tahoe start --nodaemon', since then
-        # --nodaemon looks like a basedir. So you can either use 'tahoe
-        # start' or 'tahoe start BASEDIR --TWISTD-OPTIONS'.
+        # This can't handle e.g. 'tahoe start --nodaemon', since '--nodaemon'
+        # looks like an option to the tahoe subcommand, not to twistd.
+        # So you can either use 'tahoe start' or 'tahoe start NODEDIR --TWISTD-OPTIONS'.
+        # Note that 'tahoe --node-directory=NODEDIR start --TWISTD-OPTIONS' also
+        # isn't allowed, unfortunately.
+
         BasedirOptions.parseArgs(self, basedir)
         self.twistd_args = twistd_args
 
     def getSynopsis(self):
-        return "Usage:  %s [global-opts] %s [options] [NODEDIR] [twistd_options]" % (self.command_name, self.subcommand_name)
+        return "Usage:  %s [global-opts] %s [options] [NODEDIR [twistd-options]]" % (self.command_name, self.subcommand_name)
 
     def getUsage(self, width=None):
         t = BasedirOptions.getUsage(self, width) + "\n"
-        t += format_twisted_options(MyTwistdConfig())
+        twistd_options = str(MyTwistdConfig()).partition("\n")[2].partition("\n\n")[0]
+        if twistd_options.startswith("Options:"):
+            twistd_options = "twistd-o" + twistd_options[1 :]
+        t += twistd_options
+        t += """
+
+Note that if any twistd-options are used, NODEDIR must be specified explicitly
+(not by default or using -C/--basedir or -d/--node-directory), and followed by
+the twistd-options.
+"""
         return t
 
 class StopOptions(BasedirOptions):
+    def parseArgs(self, basedir=None):
+        BasedirOptions.parseArgs(self, basedir)
+
     def getSynopsis(self):
         return "Usage:  %s [global-opts] stop [options] [NODEDIR]" % (self.command_name,)
 
