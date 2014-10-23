@@ -21,7 +21,10 @@ void self_extract(wchar_t *destination_dir);
 bool have_acceptable_python();
 void install_python();
 wchar_t * get_default_destination_dir();
-bool unzip(wchar_t *zip_path, wchar_t *destination_dir);
+void unzip(wchar_t *zip_path, wchar_t *destination_dir);
+
+#define fail_unless(x, s) if (!(x)) { fail(s); }
+void fail(char *s);
 
 #define MINIMUM_PYTHON_VERSION L"2.7.0"
 #define INSTALL_PYTHON_VERSION L"2.7.8"
@@ -43,19 +46,14 @@ int wmain(int argc, wchar_t *argv[]) {
 }
 
 void self_extract(wchar_t *destination_dir) {
+	wchar_t executable_path[MAX_PATH];
+
 	HMODULE hModule = GetModuleHandle(NULL);
     assert(hModule != NULL);
-	WCHAR executable_path[MAX_PATH];
     GetModuleFileNameW(hModule, executable_path, MAX_PATH); 
     assert(GetLastError() == ERROR_SUCCESS);
 
-	wchar_t executable_dir[_MAX_DRIVE-1 + _MAX_DIR], dir_on_drive[_MAX_DIR];
-	errno = 0;
-	_wsplitpath(executable_path, executable_dir, dir_on_drive, NULL, NULL); // can't overflow
-	assert(errno == 0);
-	wcscat(executable_dir, dir_on_drive); // can't overflow
-	assert(errno == 0);
-	assert(SetCurrentDirectoryW(executable_dir) != 0);
+	unzip(executable_path, destination_dir);
 }
 
 bool have_acceptable_python() {
@@ -72,46 +70,47 @@ void install_python() {
 }
 
 wchar_t * get_default_destination_dir() {
-	return L"";
+	// TODO: get Program Files directory from the registry
+	return L"C:\\tahoe\\windowstest";
 }
 
-bool unzip(LPWSTR zipFile, LPWSTR folder) {
+void unzip(wchar_t *zip_path, wchar_t *destination_dir) {
 	// Essentially something like:
-	// Shell.NameSpace(folder).CopyHere(Shell.NameSpace(zipFile))
+	// Shell.NameSpace(destination_dir).CopyHere(Shell.NameSpace(zip_path))
 
-	BSTR bstrZipFile = SysAllocString(zipFile);
-	assert(bstrZipFile);
-	BSTR bstrFolder = SysAllocString(folder);
-	assert(bstrFolder);
+	BSTR bstrZipFile = SysAllocString(zip_path);
+	fail_unless(bstrZipFile, "Could not allocate string for zip file path.");
+	BSTR bstrFolder = SysAllocString(destination_dir);
+	fail_unless(bstrFolder, "Could not allocate string for destination directory path.");
 
 	HRESULT res = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
 	assert(res == S_OK || res == S_FALSE);
 	__try {
 		IShellDispatch *pISD;
-		assert(CoCreateInstance(CLSID_Shell, NULL, CLSCTX_INPROC_SERVER, IID_IShellDispatch, (void **) &pISD) == S_OK);
+		fail_unless(CoCreateInstance(CLSID_Shell, NULL, CLSCTX_INPROC_SERVER, IID_IShellDispatch, (void **) &pISD) == S_OK,
+			        "Could not create Shell instance.");
 
 		VARIANT InZipFile;
 		InZipFile.vt = VT_BSTR;
 		InZipFile.bstrVal = bstrZipFile;
 		Folder *pZippedFile = NULL;
 		pISD->NameSpace(InZipFile, &pZippedFile);
-		assert(pZippedFile);
+		fail_unless(pZippedFile, "Could not create NameSpace for zip file.");
 
 		VARIANT OutFolder;
 		OutFolder.vt = VT_BSTR;
-		OutFolder.bstrVal = SysAllocString(folder);
-		assert(OutFolder.bstrVal);
+		OutFolder.bstrVal = bstrFolder;
 		Folder *pDestination = NULL;
 		pISD->NameSpace(OutFolder, &pDestination);
-		assert(pDestination);
+		fail_unless(pDestination, "Could not create NameSpace for destination directory.");
 
 		FolderItems *pFilesInside = NULL;
 		pZippedFile->Items(&pFilesInside);
-		assert(pFilesInside);
+		fail_unless(pFilesInside, "Could not create FolderItems for zip file contents.");
 
 		IDispatch *pItem = NULL;
 		pFilesInside->QueryInterface(IID_IDispatch, (void **) &pItem);
-		assert(pItem);
+		fail_unless(pItem, "Could not create Item for zip file contents.");
 
 		VARIANT Item;
 		Item.vt = VT_DISPATCH;
@@ -129,7 +128,7 @@ bool unzip(LPWSTR zipFile, LPWSTR folder) {
 		Options.lVal = 512 | 256 | 16;
 
 		bool retval = pDestination->CopyHere(Item, Options) == S_OK;
-		return retval;
+		fail_unless(retval, "CopyHere failed.");
 
 	} __finally {
 		//if (bstrInZipFile) SysFreeString(bstrInZipFile);
@@ -141,4 +140,10 @@ bool unzip(LPWSTR zipFile, LPWSTR folder) {
 		//if (pISD)          pISD->Release();
 		CoUninitialize();
 	}
+}
+
+void fail(char *s) {
+	// TODO: show dialog box
+	puts(s);
+	exit(1);
 }
