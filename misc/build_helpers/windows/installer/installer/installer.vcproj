@@ -218,6 +218,10 @@
 				RelativePath=".\app.rc"
 				>
 			</File>
+			<File
+				RelativePath=".\logo.ico"
+				>
+			</File>
 		</Filter>
 	</Files>
 	<Globals>
