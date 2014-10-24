@@ -3,7 +3,6 @@
 
 #include "stdafx.h"
 #include <stdio.h>
-#include <assert.h>
 #include <stdlib.h>
 
 // Turn off the warnings nagging you to use the more complicated *_s
@@ -38,6 +37,8 @@ int wmain(int argc, wchar_t *argv[]) {
 	wchar_t *destination_dir = (argc >= 2) ? argv[1] : get_default_destination_dir();
 
 	self_extract(destination_dir);
+	//unzip(L"C:\\tahoe\\allmydata-tahoe-1.10.0c1.zip", destination_dir);
+
 	if (!have_acceptable_python()) {
 		install_python();
 	}
@@ -49,9 +50,9 @@ void self_extract(wchar_t *destination_dir) {
 	wchar_t executable_path[MAX_PATH];
 
 	HMODULE hModule = GetModuleHandle(NULL);
-    assert(hModule != NULL);
+    fail_unless(hModule != NULL, "Could not get the module handle.");
     GetModuleFileNameW(hModule, executable_path, MAX_PATH); 
-    assert(GetLastError() == ERROR_SUCCESS);
+    fail_unless(GetLastError() == ERROR_SUCCESS, "Could not get the path of the current executable.");
 
 	unzip(executable_path, destination_dir);
 }
@@ -75,71 +76,76 @@ wchar_t * get_default_destination_dir() {
 }
 
 void unzip(wchar_t *zip_path, wchar_t *destination_dir) {
-	// Essentially something like:
-	// Shell.NameSpace(destination_dir).CopyHere(Shell.NameSpace(zip_path))
+	wprintf(L"Extracting %ls\nto %ls\n", zip_path, destination_dir);
 
-	BSTR bstrZipFile = SysAllocString(zip_path);
-	fail_unless(bstrZipFile, "Could not allocate string for zip file path.");
-	BSTR bstrFolder = SysAllocString(destination_dir);
-	fail_unless(bstrFolder, "Could not allocate string for destination directory path.");
+	// SysAllocString: <http://msdn.microsoft.com/en-gb/library/windows/desktop/ms221458(v=vs.85).aspx>
+	// BSTR: <http://msdn.microsoft.com/en-us/library/windows/desktop/ms221069(v=vs.85).aspx>
 
-	HRESULT res = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
-	assert(res == S_OK || res == S_FALSE);
-	__try {
-		IShellDispatch *pISD;
-		fail_unless(CoCreateInstance(CLSID_Shell, NULL, CLSCTX_INPROC_SERVER, IID_IShellDispatch, (void **) &pISD) == S_OK,
-			        "Could not create Shell instance.");
+	VARIANT zip_path_var;
+	zip_path_var.vt = VT_BSTR;
+	zip_path_var.bstrVal = SysAllocString(zip_path);
+	fail_unless(zip_path_var.bstrVal != NULL, "Could not allocate string for zip file path.");
 
-		VARIANT InZipFile;
-		InZipFile.vt = VT_BSTR;
-		InZipFile.bstrVal = bstrZipFile;
-		Folder *pZippedFile = NULL;
-		pISD->NameSpace(InZipFile, &pZippedFile);
-		fail_unless(pZippedFile, "Could not create NameSpace for zip file.");
+	VARIANT destination_dir_var;
+	destination_dir_var.vt = VT_BSTR;
+	destination_dir_var.bstrVal = SysAllocString(destination_dir);
+	fail_unless(destination_dir_var.bstrVal != NULL, "Could not allocate string for destination directory path.");
 
-		VARIANT OutFolder;
-		OutFolder.vt = VT_BSTR;
-		OutFolder.bstrVal = bstrFolder;
-		Folder *pDestination = NULL;
-		pISD->NameSpace(OutFolder, &pDestination);
-		fail_unless(pDestination, "Could not create NameSpace for destination directory.");
+	// CoInitializeEx: <http://msdn.microsoft.com/en-gb/library/windows/desktop/ms695279(v=vs.85).aspx>
+	HRESULT res = CoInitializeEx(NULL, 0);
+	fail_unless(res == S_OK || res == S_FALSE, "Could not initialize COM.");
 
-		FolderItems *pFilesInside = NULL;
-		pZippedFile->Items(&pFilesInside);
-		fail_unless(pFilesInside, "Could not create FolderItems for zip file contents.");
+	// CoCreateInstance: <http://msdn.microsoft.com/en-gb/library/windows/desktop/ms686615(v=vs.85).aspx>
+	IShellDispatch *shell;
+	res = CoCreateInstance(CLSID_Shell, NULL, CLSCTX_INPROC_SERVER, IID_IShellDispatch, (void **) &shell);
+	fail_unless(res == S_OK, "Could not create Shell instance.");
 
-		IDispatch *pItem = NULL;
-		pFilesInside->QueryInterface(IID_IDispatch, (void **) &pItem);
-		fail_unless(pItem, "Could not create Item for zip file contents.");
+	// Folder.NameSpace: <http://msdn.microsoft.com/en-gb/library/windows/desktop/gg537721(v=vs.85).aspx>
+	Folder *zip_folder = NULL;
+	res = shell->NameSpace(zip_path_var, &zip_folder);
+	printf("%d", res);
+	fail_unless(zip_folder != NULL, "Could not create zip Folder object.");
 
-		VARIANT Item;
-		Item.vt = VT_DISPATCH;
-		Item.pdispVal = pItem;
+	Folder *destination_folder = NULL;
+	shell->NameSpace(destination_dir_var, &destination_folder);
+	fail_unless(destination_folder != NULL, "Could not create destination Folder object.");
 
-		VARIANT Options;
-		Options.vt = VT_I4;
-		// http://msdn.microsoft.com/en-us/library/bb787866(VS.85).aspx
-		//    (4) Do not display a progress dialog box.
-		//   (16) Respond with "Yes to All" for any dialog box that is displayed.
-		//  (256) Display a progress dialog box but do not show the file names.
-		//  (512) Do not confirm the creation of a new directory if the operation requires one to be created.
-		// (1024) Do not display a user interface if an error occurs.
+	FolderItems *zip_folderitems = NULL;
+	zip_folder->Items(&zip_folderitems);
+	fail_unless(zip_folderitems != NULL, "Could not create zip FolderItems object.");
 
-		Options.lVal = 512 | 256 | 16;
+	VARIANT zip_idispatch_var;
+	zip_idispatch_var.vt = VT_DISPATCH;
+	zip_idispatch_var.pdispVal = NULL;
+	zip_folderitems->QueryInterface(IID_IDispatch, (void **) &zip_idispatch_var.pdispVal);
+	fail_unless(zip_idispatch_var.pdispVal != NULL, "Could not create IDispatch for zip FolderItems object.");
 
-		bool retval = pDestination->CopyHere(Item, Options) == S_OK;
-		fail_unless(retval, "CopyHere failed.");
+	// Folder.CopyHere: <http://msdn.microsoft.com/en-us/library/ms723207(v=vs.85).aspx>
+	//    (4) Do not display a progress dialog box.
+	//   (16) Respond with "Yes to All" for any dialog box that is displayed.
+	//  (256) Display a progress dialog box but do not show the file names.
+	//  (512) Do not confirm the creation of a new directory if the operation requires one to be created.
+	// (1024) Do not display a user interface if an error occurs.
+	VARIANT options_var;
+	options_var.vt = VT_I4;
+	options_var.lVal = 16 | 256 | 512 | 1024;
 
-	} __finally {
-		//if (bstrInZipFile) SysFreeString(bstrInZipFile);
-		//if (bstrOutFolder) SysFreeString(bstrOutFolder);
-		//if (pItem)         pItem->Release();
-		//if (pFilesInside)  pFilesInside->Release();
-		//if (pDestination)  pDestination->Release();
-		//if (pZippedFile)   pZippedFile->Release();
-		//if (pISD)          pISD->Release();
-		CoUninitialize();
-	}
+	res = destination_folder->CopyHere(zip_idispatch_var, options_var);
+	fail_unless(res == S_OK, "Could not extract zip file contents to destination directory.");
+
+	// We don't bother to free/release stuff unless we succeed, since we exit on failure.
+
+	// SysFreeString: <http://msdn.microsoft.com/en-gb/library/windows/desktop/ms221481(v=vs.85).aspx>
+	SysFreeString(zip_path_var.bstrVal);
+	SysFreeString(destination_dir_var.bstrVal);
+	zip_idispatch_var.pdispVal->Release();
+	zip_folderitems->Release();
+	destination_folder->Release();
+	zip_folder->Release();
+	shell->Release();
+
+	// CoUninitialize: <http://msdn.microsoft.com/en-us/library/windows/desktop/ms688715(v=vs.85).aspx>
+	CoUninitialize();
 }
 
 void fail(char *s) {
