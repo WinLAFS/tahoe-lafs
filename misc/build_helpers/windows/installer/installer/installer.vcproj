@@ -87,6 +87,8 @@
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
+				Description="Making self-extracting executable..."
+				CommandLine="cmd /c &quot;copy /y /b $(OutDir)\$(ProjectName).exe+C:\tahoe\allmydata-tahoe-1.10.0c1.zip $(OutDir)\$(ProjectName).exe&quot;"
 			/>
 		</Configuration>
 		<Configuration

@@ -16,12 +16,13 @@
 #include <shldisp.h>
 
 int wmain(int argc, wchar_t *argv[]);
-void self_extract(wchar_t *destination_dir);
-unsigned __int64 read_uint64_le(unsigned char *b);
-bool have_acceptable_python();
-void install_python();
 wchar_t * get_default_destination_dir();
+void self_extract(wchar_t *destination_dir);
+void unzip_from_executable(wchar_t *executable_path, wchar_t *destination_dir);
+size_t read_uint32_le(unsigned char *b);
 void unzip(wchar_t *zip_path, wchar_t *destination_dir);
+bool have_acceptable_python();
+void install_python(wchar_t *python_installer_dir);
 
 #define fail_unless(x, s) if (!(x)) { fail(s); }
 void fail(char *s);
@@ -50,10 +51,15 @@ int wmain(int argc, wchar_t *argv[]) {
 	//unzip(L"C:\\tahoe\\allmydata-tahoe-1.10.0c1.zip", destination_dir);
 
 	if (!have_acceptable_python()) {
-		install_python();
+		install_python(destination_dir);
 	}
 	//unlink(python_installer);
 	return 0;
+}
+
+wchar_t * get_default_destination_dir() {
+	// TODO: get Program Files directory from the registry
+	return L"C:\\tahoe\\windowstest";
 }
 
 void self_extract(wchar_t *destination_dir) {
@@ -64,47 +70,43 @@ void self_extract(wchar_t *destination_dir) {
     GetModuleFileNameW(hModule, executable_path, MAX_PATH); 
     fail_unless(GetLastError() == ERROR_SUCCESS, "Could not get the path of the current executable.");
 
+	unzip_from_executable(executable_path, destination_dir);
+}
+
+void unzip_from_executable(wchar_t *executable_path, wchar_t *destination_dir) {
 	// shell32's zipped folder implementation is strict about the zip format and
 	// does not support unzipping a self-extracting exe directly. So we copy the
 	// original zip file that was appended to the exe to a temporary directory,
 	// and use shell32 to unzip it from there. To get the length of the zip file,
-	// we look at its "end of central directory record" (not to be confused with
-	// a "Zip64 end of central directory record"), which is documented at
+	// we look at its "end of central directory record", which is documented at
 	// <http://www.pkware.com/documents/casestudies/APPNOTE.TXT>.
 	// For simplicity we only handle the case of a zip file that has no archive
-	// comment. This code is based loosely on the _EndRecData function in
-	// <https://hg.python.org/cpython/file/2.7/Lib/zipfile.py>.
+	// comment, that does not use disk spanning, and that does not have a
+	// "Zip64 end of central directory record".
 
-	// APPNOTE.TXT sections 4.3.15 and 4.3.16.
-	const size_t sizeof_zip64eocdl = 20,
-		         sizeof_eocd = 22;
-	unsigned char end_data[sizeof_zip64eocdl + sizeof_eocd];
-	unsigned char zip64eocdl_signature[]  = {0x50, 0x4B, 0x06, 0x07};
-	unsigned char eocd_signature[]        = {0x50, 0x4B, 0x05, 0x06};
-	unsigned char comment_length[]        = {0x00, 0x00};
-	unsigned char zip64eocdl_disk_num[]   = {0x00, 0x00, 0x00, 0x00};
-	unsigned char zip64eocdl_disk_count[] = {0x01, 0x00, 0x00, 0x00};
+	// APPNOTE.TXT section 4.3.16.
+	const size_t sizeof_eocd = 22;
+	unsigned char end_data[sizeof_eocd];
+	unsigned char eocd_signature[] = {0x50, 0x4B, 0x05, 0x06};
+	unsigned char comment_length[] = {0x00, 0x00};
+	unsigned char disk_num[] = {0x00, 0x00};
 
 	errno = 0;
 	FILE *f = _wfopen(L"C:\\tahoe\\foo.zip", L"rb");
 	fail_unless(f != NULL && errno == 0 && ferror(f) == 0,
 		        "Could not open executable file.");
 
-	_fseeki64(f, -(__int64) sizeof(end_data), SEEK_END);
+	fseek(f, -(off_t) sizeof_eocd, SEEK_END);
 	fail_unless(errno == 0 && ferror(f) == 0,
-		        "Could not seek to end records.");
+		        "Could not seek to end-of-central-directory record.");
 
-	__int64 zip64eocdl_offset = _ftelli64(f);
-	fail_unless(errno == 0 && ferror(f) == 0 && zip64eocdl_offset >= 0,
-		        "Could not read position of end records.");
+	__int64 eocd_offset = _ftelli64(f);
+	fail_unless(errno == 0 && ferror(f) == 0 && eocd_offset >= 0,
+		        "Could not read position of end-of-central-directory record.");
+	fail_unless(eocd_offset + sizeof_eocd <= 0xFFFFFFFFi64,
+		        "Cannot read an executable file >= 4 GiB.");
 
-	printf("zip64eocdl_offset = %ld\n", zip64eocdl_offset);
 	size_t n = fread(end_data, sizeof(end_data), 1, f);
-	printf("n = %ld\n", n);
-	for (size_t i = 0; i < sizeof(end_data); i++) {
-		printf("%02X ", end_data[i]);
-	}
-	printf("\n");
 	fail_unless(n == 1 && errno == 0 && ferror(f) == 0,
 		        "Could not read end records.");
 
@@ -112,67 +114,53 @@ void self_extract(wchar_t *destination_dir) {
 		               comment_length, sizeof(comment_length)) == 0,
 		        "Cannot read a zip file that has an archive comment.");
 
-	unsigned char *eocd = end_data + sizeof_zip64eocdl;
-	fail_unless(memcmp(eocd, eocd_signature, sizeof(eocd_signature)) == 0,
+	fail_unless(memcmp(end_data, eocd_signature, sizeof(eocd_signature)) == 0,
 		        "Could not find the end-of-central-directory signature.");
 
-	fail_unless(memcmp(end_data, zip64eocdl_signature, sizeof(zip64eocdl_signature)) == 0,
-		        "Could not find the zip64-end-of-central-directory-locator signature.");
-
-	fail_unless(memcmp(eocd + 4, zip64eocdl_disk_num, sizeof(zip64eocdl_disk_num)) == 0 &&
-		        memcmp(eocd + 6, zip64eocdl_disk_num, sizeof(zip64eocdl_disk_num)) == 0 &&
-		        memcmp(end_data + 4, zip64eocdl_disk_count, sizeof(zip64eocdl_disk_count)) == 0,
+	fail_unless(memcmp(end_data + 4, disk_num, sizeof(disk_num)) == 0 &&
+		        memcmp(end_data + 6, disk_num, sizeof(disk_num)) == 0,
 		        "Cannot read a zipfile that spans disks.");
 
-    unsigned __int64 eocd_relative_offset = read_uint64_le(end_data + 8);
-	unsigned __int64 eocd_offset = zip64eocdl_offset + sizeof_zip64eocdl;
-	fail_unless(eocd_relative_offset <= 0x7FFFFFFFFFFFFFFFi64 && eocd_offset <= 0x7FFFFFFFFFFFFFFFi64,
-		        "Could not calculate zipfile offset due to potential integer overflow.");
-
-	__int64 zipfile_offset = eocd_offset - eocd_relative_offset;
-	fail_unless(zipfile_offset >= 0 && zipfile_offset <= zip64eocdl_offset,
-		        "Unexpected result from zipfile offset calculation.");
-
-	printf("zipfile_offset = %ld\n", zipfile_offset);
-	_fseeki64(f, zipfile_offset, SEEK_SET); 
+	size_t cd_length = read_uint32_le(end_data + 12);
+	size_t cd_offset = read_uint32_le(end_data + 16);
+	__int64 zip_length = cd_offset + cd_length + sizeof_eocd;
+	fail_unless(zip_length <= 0x7FFFFFFFi64,
+	            "Cannot copy a zip file >= 2 GiB.");
+	fseek(f, -(off_t) zip_length, SEEK_END);
 	fail_unless(errno == 0 && ferror(f) == 0,
-		        "Could not seek to zipfile offset.");
+		        "Could not seek to start of embedded zip file.");
 
-	printf("%ld\n", zipfile_offset);
-	//unzip(L"C:\\tahoe\\foo.zip", destination_dir);
+	const wchar_t tmp_filename[] = L"tahoe-lafs.zip"; // FIXME make this more unique.
+	wchar_t tmp_path[MAX_PATH];
+	DWORD len = GetTempPathW(MAX_PATH, tmp_path);
+	fail_unless(len > 0 && len < MAX_PATH - wcslen(tmp_filename),
+	            "Could not obtain temporary directory path.");
+	wcscpy(tmp_path + len, tmp_filename);
+
+	FILE *tmp_file = _wfopen(tmp_path, L"wb");
+	unsigned char buf[16384];
+	size_t remaining_length = (size_t) zip_length;
+	while (remaining_length > 0) {
+		size_t chunk_length = min(remaining_length, sizeof(buf));
+		n = fread(buf, chunk_length, 1, f);
+		fail_unless(n == 1 && errno == 0 && ferror(f) == 0,
+		            "Could not read from executable file.");
+		fwrite(buf, chunk_length, 1, tmp_file);
+		fail_unless(n == 1 && errno == 0 && ferror(f) == 0,
+		            "Could not write to temporary file.");
+		remaining_length -= chunk_length;
+	}
+	fclose(tmp_file);
+
+	unzip(tmp_path, destination_dir);
 }
 
-// read unsigned little-endian 64-bit integer
-unsigned __int64 read_uint64_le(unsigned char *b) {
-	return ((unsigned __int64) b[0]      ) |
-		   ((unsigned __int64) b[1] <<  8) |
-		   ((unsigned __int64) b[2] << 16) |
-		   ((unsigned __int64) b[3] << 24) |
-		   ((unsigned __int64) b[4] << 32) |
-		   ((unsigned __int64) b[5] << 40) |
-		   ((unsigned __int64) b[6] << 48) |
-		   ((unsigned __int64) b[7] << 56);
-}
-
-void read_from_end(FILE *f, size_t offset, unsigned char *dest, size_t length) {
-}
-
-bool have_acceptable_python() {
-	printf("Checking for Python 2.7...");
-	//key = OpenKey(HKEY_CURRENT_USER, L"Environment", 0, KEY_QUERY_VALUE)
-	//key = OpenKey(HKEY_CURRENT_USER, L"SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment", 0, KEY_QUERY_VALUE)
-	//...
-	return false;
-}
-
-void install_python() {
-	// The current directory should be the root of ...
-	//CreateProcessW(".msi");
-}
-
-wchar_t * get_default_destination_dir() {
-	// TODO: get Program Files directory from the registry
-	return L"C:\\tahoe\\windowstest";
+// read unsigned little-endian 32-bit integer
+size_t read_uint32_le(unsigned char *b) {
+	return ((size_t) b[0]      ) |
+		   ((size_t) b[1] <<  8) |
+		   ((size_t) b[2] << 16) |
+		   ((size_t) b[3] << 24);
 }
 
 void unzip(wchar_t *zip_path, wchar_t *destination_dir) {
@@ -251,6 +239,34 @@ void unzip(wchar_t *zip_path, wchar_t *destination_dir) {
 
 	// CoUninitialize: <http://msdn.microsoft.com/en-us/library/windows/desktop/ms688715(v=vs.85).aspx>
 	CoUninitialize();
+}
+
+bool have_acceptable_python() {
+	printf("Checking for Python 2.7...");
+	//key = OpenKey(HKEY_CURRENT_USER, L"Environment", 0, KEY_QUERY_VALUE)
+	//key = OpenKey(HKEY_CURRENT_USER, L"SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment", 0, KEY_QUERY_VALUE)
+	//...
+	return false;
+}
+
+void install_python(wchar_t *python_installer_dir) {
+	wchar_t installer_wildcard[] = L"\\*.msi";
+	wchar_t installer_pattern[MAX_PATH];
+	fail_unless(wcslen(python_installer_dir) < MAX_PATH - wcslen(installer_wildcard),
+	            "Could not construct pattern for Python installer.")
+	wcscpy(installer_pattern, python_installer_dir);
+	wcscat(installer_pattern, installer_wildcard);
+
+	WIN32_FIND_DATA find_data;
+	HANDLE search_handle = FindFirstFileW(installer_pattern, &find_data);
+	fail_unless(search_handle != INVALID_HANDLE_VALUE,
+	            "Could not find the Python installer.")
+
+	fail_unless(wcslen(python_installer_dir) < MAX_PATH - wcslen(find_data.cFileName),
+	            "Could not construct path to Python installer.")
+	wcscpy(installer_pattern, python_installer_dir);
+	wcscat(installer_pattern, find_data.cFileName);
+	//CreateProcessW(".msi");
 }
 
 void fail(char *s) {
