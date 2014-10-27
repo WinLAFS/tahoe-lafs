@@ -17,12 +17,14 @@
 
 int wmain(int argc, wchar_t *argv[]);
 wchar_t * get_default_destination_dir();
+void initialize_com();
 void self_extract(wchar_t *destination_dir);
 void unzip_from_executable(wchar_t *executable_path, wchar_t *destination_dir);
 size_t read_uint32_le(unsigned char *b);
 void unzip(wchar_t *zip_path, wchar_t *destination_dir);
 bool have_acceptable_python();
 void install_python(wchar_t *python_installer_dir);
+void execute(wchar_t *command, wchar_t *arguments, wchar_t *stdout_buf, size_t stdout_size);
 
 #define fail_unless(x, s) if (!(x)) { fail(s); }
 void fail(char *s);
@@ -47,6 +49,8 @@ int wmain(int argc, wchar_t *argv[]) {
 	}
 	wchar_t *destination_dir = (argc >= 2) ? argv[1] : get_default_destination_dir();
 
+	initialize_com();
+
 	self_extract(destination_dir);
 	//unzip(L"C:\\tahoe\\allmydata-tahoe-1.10.0c1.zip", destination_dir);
 
@@ -60,6 +64,16 @@ int wmain(int argc, wchar_t *argv[]) {
 wchar_t * get_default_destination_dir() {
 	// TODO: get Program Files directory from the registry
 	return L"C:\\tahoe\\windowstest";
+}
+
+void initialize_com() {
+	// CoInitializeEx: <http://msdn.microsoft.com/en-gb/library/windows/desktop/ms695279(v=vs.85).aspx>
+	HRESULT res = CoInitializeEx(NULL, 0);
+	fail_unless(res == S_OK || res == S_FALSE, "Could not initialize COM.");
+
+	// Despite what the documentation says, we don't need to call CoUninitialize because
+	// any resources will be cleaned up on process exit, and there will be no pending COM
+	// messages at that point.
 }
 
 void self_extract(wchar_t *destination_dir) {
@@ -123,7 +137,7 @@ void unzip_from_executable(wchar_t *executable_path, wchar_t *destination_dir) {
 
 	size_t cd_length = read_uint32_le(end_data + 12);
 	size_t cd_offset = read_uint32_le(end_data + 16);
-	__int64 zip_length = cd_offset + cd_length + sizeof_eocd;
+	__int64 zip_length = (__int64) cd_offset + cd_length + sizeof_eocd;
 	fail_unless(zip_length <= 0x7FFFFFFFi64,
 	            "Cannot copy a zip file >= 2 GiB.");
 	fseek(f, -(off_t) zip_length, SEEK_END);
@@ -133,11 +147,11 @@ void unzip_from_executable(wchar_t *executable_path, wchar_t *destination_dir) {
 	const wchar_t tmp_filename[] = L"tahoe-lafs.zip"; // FIXME make this more unique.
 	wchar_t tmp_path[MAX_PATH];
 	DWORD len = GetTempPathW(MAX_PATH, tmp_path);
-	fail_unless(len > 0 && len < MAX_PATH - wcslen(tmp_filename),
-	            "Could not obtain temporary directory path.");
+	fail_unless(len > 0, "Could not obtain temporary directory path.");
+	fail_unless(len < MAX_PATH - wcslen(tmp_filename), "Temporary directory path is too long.");
 	wcscpy(tmp_path + len, tmp_filename);
 
-	FILE *tmp_file = _wfopen(tmp_path, L"wb");
+	FILE *tmp_file = _wfopen(tmp_path, L"wbTD"); // TD => short-lived temporary file
 	unsigned char buf[16384];
 	size_t remaining_length = (size_t) zip_length;
 	while (remaining_length > 0) {
@@ -151,6 +165,7 @@ void unzip_from_executable(wchar_t *executable_path, wchar_t *destination_dir) {
 		remaining_length -= chunk_length;
 	}
 	fclose(tmp_file);
+	fclose(f);
 
 	unzip(tmp_path, destination_dir);
 }
@@ -164,9 +179,8 @@ size_t read_uint32_le(unsigned char *b) {
 }
 
 void unzip(wchar_t *zip_path, wchar_t *destination_dir) {
-	// Based on <https://social.msdn.microsoft.com/Forums/vstudio/en-US/45668d18-2840-4887-87e1-4085201f4103/visual-c-to-unzip-a-zip-file-to-a-specific-directory?forum=vclanguage>
-
-	wprintf(L"Extracting %ls\nto %ls\n", zip_path, destination_dir);
+	// Based loosely on
+	// <https://social.msdn.microsoft.com/Forums/vstudio/en-US/45668d18-2840-4887-87e1-4085201f4103/visual-c-to-unzip-a-zip-file-to-a-specific-directory?forum=vclanguage>.
 
 	// SysAllocString: <http://msdn.microsoft.com/en-gb/library/windows/desktop/ms221458(v=vs.85).aspx>
 	// BSTR: <http://msdn.microsoft.com/en-us/library/windows/desktop/ms221069(v=vs.85).aspx>
@@ -181,13 +195,9 @@ void unzip(wchar_t *zip_path, wchar_t *destination_dir) {
 	destination_dir_var.bstrVal = SysAllocString(destination_dir);
 	fail_unless(destination_dir_var.bstrVal != NULL, "Could not allocate string for destination directory path.");
 
-	// CoInitializeEx: <http://msdn.microsoft.com/en-gb/library/windows/desktop/ms695279(v=vs.85).aspx>
-	HRESULT res = CoInitializeEx(NULL, 0);
-	fail_unless(res == S_OK || res == S_FALSE, "Could not initialize COM.");
-
 	// CoCreateInstance: <http://msdn.microsoft.com/en-gb/library/windows/desktop/ms686615(v=vs.85).aspx>
 	IShellDispatch *shell;
-	res = CoCreateInstance(CLSID_Shell, NULL, CLSCTX_INPROC_SERVER, IID_IShellDispatch, (void **) &shell);
+	HRESULT res = CoCreateInstance(CLSID_Shell, NULL, CLSCTX_INPROC_SERVER, IID_IShellDispatch, (void **) &shell);
 	fail_unless(res == S_OK, "Could not create Shell instance.");
 
 	// Folder.NameSpace: <http://msdn.microsoft.com/en-gb/library/windows/desktop/gg537721(v=vs.85).aspx>
@@ -203,10 +213,6 @@ void unzip(wchar_t *zip_path, wchar_t *destination_dir) {
 	zip_folder->Items(&zip_folderitems);
 	fail_unless(zip_folderitems != NULL, "Could not create zip FolderItems object.");
 
-	long files_count = 0;
-	zip_folderitems->get_Count(&files_count);
-	printf("count %d\n", files_count);
-
 	VARIANT zip_idispatch_var;
 	zip_idispatch_var.vt = VT_DISPATCH;
 	zip_idispatch_var.pdispVal = NULL;
@@ -214,11 +220,11 @@ void unzip(wchar_t *zip_path, wchar_t *destination_dir) {
 	fail_unless(zip_idispatch_var.pdispVal != NULL, "Could not create IDispatch for zip FolderItems object.");
 
 	// Folder.CopyHere: <http://msdn.microsoft.com/en-us/library/ms723207(v=vs.85).aspx>
-	//    (4) Do not display a progress dialog box.
 	//   (16) Respond with "Yes to All" for any dialog box that is displayed.
 	//  (256) Display a progress dialog box but do not show the file names.
 	//  (512) Do not confirm the creation of a new directory if the operation requires one to be created.
 	// (1024) Do not display a user interface if an error occurs.
+	// These options are ignored on Windows XP.
 	VARIANT options_var;
 	options_var.vt = VT_I4;
 	options_var.lVal = 16 | 256 | 512 | 1024;
@@ -236,21 +242,42 @@ void unzip(wchar_t *zip_path, wchar_t *destination_dir) {
 	destination_folder->Release();
 	zip_folder->Release();
 	shell->Release();
-
-	// CoUninitialize: <http://msdn.microsoft.com/en-us/library/windows/desktop/ms688715(v=vs.85).aspx>
-	CoUninitialize();
 }
 
 bool have_acceptable_python() {
 	printf("Checking for Python 2.7...");
-	//key = OpenKey(HKEY_CURRENT_USER, L"Environment", 0, KEY_QUERY_VALUE)
-	//key = OpenKey(HKEY_CURRENT_USER, L"SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment", 0, KEY_QUERY_VALUE)
-	//...
+	// SearchPathW: <http://msdn.microsoft.com/en-gb/library/windows/desktop/aa365527(v=vs.85).aspx>
+
+	wchar_t python_exe_path[MAX_PATH];
+	DWORD res = SearchPathW(NULL, L"python.exe", NULL, MAX_PATH, python_exe_path, NULL);
+	if (res == 0 || res >= MAX_PATH) {
+		return false;
+	}
+	//execute(python_exe_path, L"--version");
+	//execute(python_exe_path, L"setup.py scriptsetup --allusers");
+	HKEY environment_key;
+
+	if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Environment",
+	                  0, KEY_QUERY_VALUE, &environment_key) != ERROR_SUCCESS) {
+		return false;
+	}
+	if (RegOpenKeyExW(HKEY_CURRENT_USER, L"SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment",
+	                  0, KEY_QUERY_VALUE, &environment_key) != ERROR_SUCCESS) {
+		return false;
+	}
+
 	return false;
+}
+
+void execute(wchar_t *command, wchar_t *arguments, wchar_t *stdout_buf, size_t stdout_size) {
+	CreateProcessW(command, arguments, NULL, NULL, FALSE, 0, NULL, NULL, NULL, NULL);
 }
 
 void install_python(wchar_t *python_installer_dir) {
 	wchar_t installer_wildcard[] = L"\\*.msi";
+	if (python_installer_dir[wcslen(python_installer_dir)-1] == '\\') {
+		wcscpy(installer_wildcard, L"*.msi");
+	}
 	wchar_t installer_pattern[MAX_PATH];
 	fail_unless(wcslen(python_installer_dir) < MAX_PATH - wcslen(installer_wildcard),
 	            "Could not construct pattern for Python installer.")
@@ -264,9 +291,11 @@ void install_python(wchar_t *python_installer_dir) {
 
 	fail_unless(wcslen(python_installer_dir) < MAX_PATH - wcslen(find_data.cFileName),
 	            "Could not construct path to Python installer.")
-	wcscpy(installer_pattern, python_installer_dir);
-	wcscat(installer_pattern, find_data.cFileName);
-	//CreateProcessW(".msi");
+
+	wchar_t installer_path[MAX_PATH];
+	wcscpy(installer_path, python_installer_dir);
+	wcscat(installer_path, find_data.cFileName);
+	//execute(installer_path, L"");
 }
 
 void fail(char *s) {
