@@ -4,6 +4,7 @@
 #include "stdafx.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <io.h>
 
 // Turn off the warnings nagging you to use the more complicated *_s
 // "secure" functions that are actually more difficult to use securely.
@@ -151,7 +152,17 @@ void unzip_from_executable(wchar_t *executable_path, wchar_t *destination_dir) {
 	fail_unless(len < MAX_PATH - wcslen(tmp_filename), "Temporary directory path is too long.");
 	wcscpy(tmp_path + len, tmp_filename);
 
-	FILE *tmp_file = _wfopen(tmp_path, L"wbTD"); // TD => short-lived temporary file
+	// "TD" => short-lived temporary file. The D flag ensures that the file is guaranteed
+	// to be deleted even if we exit suddenly. In order to reliably flush writes but also
+	// ensure that the temporary file isn't deleted too soon, we duplicate the file handle
+	// while the file is being unzipped.
+	FILE *tmp_file = _wfopen(tmp_path, L"wbTD");
+	fail_unless(tmp_file != NULL && errno == 0 && ferror(f) == 0,
+		        "Could not open temporary zip file.");
+
+	int tmp_file_keepopen = _dup(_fileno(tmp_file));
+	fail_unless(errno == 0, "Could not duplicate file handle for temporary zip file.");
+
 	unsigned char buf[16384];
 	size_t remaining_length = (size_t) zip_length;
 	while (remaining_length > 0) {
@@ -164,10 +175,12 @@ void unzip_from_executable(wchar_t *executable_path, wchar_t *destination_dir) {
 		            "Could not write to temporary file.");
 		remaining_length -= chunk_length;
 	}
-	fclose(tmp_file);
-	fclose(f);
+	int res = fclose(tmp_file);
+	fail_unless(res == 0, "Could not close temporary zip file.");
+	fclose(f); // ignore errors
 
 	unzip(tmp_path, destination_dir);
+	_close(tmp_file_keepopen); // ignore errors
 }
 
 // read unsigned little-endian 32-bit integer
