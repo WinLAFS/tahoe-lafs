@@ -140,12 +140,11 @@ class GetOptions(FilesystemOptions):
         # tahoe get FOO bar              # write to local file
         # tahoe get tahoe:FOO bar        # same
 
-        self.from_file = argv_to_unicode(arg1)
+        if arg2 == "-":
+            arg2 = None
 
-        if arg2 and arg2 != "-":
-            self.to_file = argv_to_abspath(arg2)
-        else:
-            self.to_file = None
+        self.from_file = argv_to_unicode(arg1)
+        self.to_file   = None if arg2 is None else argv_to_abspath(arg2)
 
     def getSynopsis(self):
         return "Usage:  %s [global-opts] get [options] REMOTE_FILE LOCAL_FILE" % (self.command_name,)
@@ -180,15 +179,8 @@ class PutOptions(FilesystemOptions):
         if arg1 == "-":
             arg1 = None
 
-        if arg1 is not None and arg2 is not None:
-            self.from_file = argv_to_abspath(arg1)
-            self.to_file =  argv_to_unicode(arg2)
-        elif arg1 is not None and arg2 is None:
-            self.from_file = argv_to_abspath(arg1)
-            self.to_file = None
-        else:
-            self.from_file = None
-            self.to_file = None
+        self.from_file = None if arg1 is None else argv_to_abspath(arg1)
+        self.to_file   = None if arg2 is None else argv_to_unicode(arg2)
 
         if self['format']:
             if self['format'].upper() not in ("SDMF", "MDMF", "CHK"):
