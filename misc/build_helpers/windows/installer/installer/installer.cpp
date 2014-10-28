@@ -5,6 +5,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <io.h>
+#include <fcntl.h>
+#include <process.h>
 
 // Turn off the warnings nagging you to use the more complicated *_s
 // "secure" functions that are actually more difficult to use securely.
@@ -25,10 +27,11 @@ size_t read_uint32_le(unsigned char *b);
 void unzip(wchar_t *zip_path, wchar_t *destination_dir);
 bool have_acceptable_python();
 void install_python(wchar_t *python_installer_dir);
-void execute(wchar_t *command, wchar_t *arguments, wchar_t *stdout_buf, size_t stdout_size);
+bool spawn_with_redirected_stdout(unsigned char *stdout_buf, size_t stdout_size, const wchar_t *argv[]);
 
 #define fail_unless(x, s) if (!(x)) { fail(s); }
 void fail(char *s);
+void warn(char *s);
 
 #define MINIMUM_PYTHON_VERSION L"2.7.0"
 #define INSTALL_PYTHON_VERSION L"2.7.8"
@@ -53,12 +56,9 @@ int wmain(int argc, wchar_t *argv[]) {
 	initialize_com();
 
 	self_extract(destination_dir);
-	//unzip(L"C:\\tahoe\\allmydata-tahoe-1.10.0c1.zip", destination_dir);
 
-	if (!have_acceptable_python()) {
-		install_python(destination_dir);
-	}
-	//unlink(python_installer);
+	install_python(destination_dir);
+
 	return 0;
 }
 
@@ -68,13 +68,6 @@ wchar_t * get_default_destination_dir() {
 }
 
 void initialize_com() {
-	// CoInitializeEx: <http://msdn.microsoft.com/en-gb/library/windows/desktop/ms695279(v=vs.85).aspx>
-	HRESULT res = CoInitializeEx(NULL, 0);
-	fail_unless(res == S_OK || res == S_FALSE, "Could not initialize COM.");
-
-	// Despite what the documentation says, we don't need to call CoUninitialize because
-	// any resources will be cleaned up on process exit, and there will be no pending COM
-	// messages at that point.
 }
 
 void self_extract(wchar_t *destination_dir) {
@@ -141,6 +134,7 @@ void unzip_from_executable(wchar_t *executable_path, wchar_t *destination_dir) {
 	__int64 zip_length = (__int64) cd_offset + cd_length + sizeof_eocd;
 	fail_unless(zip_length <= 0x7FFFFFFFi64,
 	            "Cannot copy a zip file >= 2 GiB.");
+
 	fseek(f, -(off_t) zip_length, SEEK_END);
 	fail_unless(errno == 0 && ferror(f) == 0,
 		        "Could not seek to start of embedded zip file.");
@@ -156,12 +150,13 @@ void unzip_from_executable(wchar_t *executable_path, wchar_t *destination_dir) {
 	// to be deleted even if we exit suddenly. In order to reliably flush writes but also
 	// ensure that the temporary file isn't deleted too soon, we duplicate the file handle
 	// while the file is being unzipped.
+	errno = 0;
 	FILE *tmp_file = _wfopen(tmp_path, L"wbTD");
 	fail_unless(tmp_file != NULL && errno == 0 && ferror(f) == 0,
 		        "Could not open temporary zip file.");
 
 	int tmp_file_keepopen = _dup(_fileno(tmp_file));
-	fail_unless(errno == 0, "Could not duplicate file handle for temporary zip file.");
+	fail_unless(errno == 0, "Could not duplicate file descriptor for temporary zip file.");
 
 	unsigned char buf[16384];
 	size_t remaining_length = (size_t) zip_length;
@@ -195,6 +190,10 @@ void unzip(wchar_t *zip_path, wchar_t *destination_dir) {
 	// Based loosely on
 	// <https://social.msdn.microsoft.com/Forums/vstudio/en-US/45668d18-2840-4887-87e1-4085201f4103/visual-c-to-unzip-a-zip-file-to-a-specific-directory?forum=vclanguage>.
 
+	// CoInitializeEx: <http://msdn.microsoft.com/en-gb/library/windows/desktop/ms695279(v=vs.85).aspx>
+	HRESULT res = CoInitializeEx(NULL, 0);
+	fail_unless(res == S_OK || res == S_FALSE, "Could not initialize COM.");
+
 	// SysAllocString: <http://msdn.microsoft.com/en-gb/library/windows/desktop/ms221458(v=vs.85).aspx>
 	// BSTR: <http://msdn.microsoft.com/en-us/library/windows/desktop/ms221069(v=vs.85).aspx>
 
@@ -210,7 +209,7 @@ void unzip(wchar_t *zip_path, wchar_t *destination_dir) {
 
 	// CoCreateInstance: <http://msdn.microsoft.com/en-gb/library/windows/desktop/ms686615(v=vs.85).aspx>
 	IShellDispatch *shell;
-	HRESULT res = CoCreateInstance(CLSID_Shell, NULL, CLSCTX_INPROC_SERVER, IID_IShellDispatch, (void **) &shell);
+	res = CoCreateInstance(CLSID_Shell, NULL, CLSCTX_INPROC_SERVER, IID_IShellDispatch, (void **) &shell);
 	fail_unless(res == S_OK, "Could not create Shell instance.");
 
 	// Folder.NameSpace: <http://msdn.microsoft.com/en-gb/library/windows/desktop/gg537721(v=vs.85).aspx>
@@ -255,19 +254,26 @@ void unzip(wchar_t *zip_path, wchar_t *destination_dir) {
 	destination_folder->Release();
 	zip_folder->Release();
 	shell->Release();
+
+	// CoUninitialize: <http://msdn.microsoft.com/en-gb/library/windows/desktop/ms688715(v=vs.85).aspx>
+	CoUninitialize();
 }
 
-bool have_acceptable_python() {
+void install_python() {
 	printf("Checking for Python 2.7...");
-	// SearchPathW: <http://msdn.microsoft.com/en-gb/library/windows/desktop/aa365527(v=vs.85).aspx>
-
+/*
 	wchar_t python_exe_path[MAX_PATH];
 	DWORD res = SearchPathW(NULL, L"python.exe", NULL, MAX_PATH, python_exe_path, NULL);
 	if (res == 0 || res >= MAX_PATH) {
 		return false;
 	}
-	//execute(python_exe_path, L"--version");
-	//execute(python_exe_path, L"setup.py scriptsetup --allusers");
+	errno = 0;
+
+
+	HANDLE hProcess = (HANDLE) _wspawnlp(P_NOWAIT, L"python", L"-V");
+	if (exitcode != 0 || errno != 0) return false;
+	_cwait(...)
+
 	HKEY environment_key;
 
 	if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Environment",
@@ -280,10 +286,95 @@ bool have_acceptable_python() {
 	}
 
 	return false;
+*/
 }
 
-void execute(wchar_t *command, wchar_t *arguments, wchar_t *stdout_buf, size_t stdout_size) {
-	CreateProcessW(command, arguments, NULL, NULL, FALSE, 0, NULL, NULL, NULL, NULL);
+void scriptsetup() {
+	unsigned char stdout_buf[1024];
+	const wchar_t *argv[] = { L"python", L"setup.py", L"scriptsetup", L"--allusers", NULL };
+	spawn_with_redirected_stdout(stdout_buf, sizeof(stdout_buf), &argv[0]);
+	//if (exitcode != 0 || errno != 0) return false;
+}
+
+bool spawn_with_redirected_stdout(unsigned char *stdout_buf, size_t stdout_size, const wchar_t *argv[]) {
+	bool result = false;
+	fail_unless(stdout_size > 0, "Invalid stdout_size.");
+	stdout_buf[0] = 0;
+
+	// Redirecting stdout is annoyingly complicated.
+	int output_pipe[2];
+	errno = 0;
+    int res = _pipe(output_pipe, 512, _O_BINARY | _O_NOINHERIT);
+	if (res != 0) {
+		warn("Could not create pipe.");
+		return false;
+	}
+	int output_read_fd = output_pipe[0], output_write_fd = output_pipe[1];
+
+	// Duplicate stdout file descriptor (the call to _dup2 will close the original).
+	int original_stdout_fd = _dup(_fileno(stdout));
+	if (errno != 0) {
+		warn("Could not duplicate original stdout file descriptor.");
+		return false;
+	}
+
+	// Duplicate write end of pipe to stdout file descriptor.
+    res = _dup2(output_write_fd, _fileno(stdout));
+	if (res != 0 || errno != 0) {
+		warn("Could not redirect stdout.");
+		return false;
+	}
+
+	// Close original file descriptor for write end of pipe.
+	_close(output_write_fd); // ignore errors
+
+	HANDLE process_handle = (HANDLE) _wspawnvp(P_NOWAIT, argv[0], argv);
+	if (process_handle == (HANDLE) -1) {
+		warn("Could not execute subprocess.");
+	}
+
+	// Duplicate copy of original stdout back into stdout.
+	errno = 0;
+	res = _dup2(original_stdout_fd, _fileno(stdout));
+    fail_unless(res == 0 && errno == 0, "Could not restore stdout.");
+
+	// Close duplicate copy of original stdout.
+	_close(original_stdout_fd); // ignore errors
+
+	if (process_handle == (HANDLE) -1) {
+		return false;
+	}
+
+	DWORD exit_code = 0;
+	errno = 0;
+	unsigned char *p = stdout_buf;
+	size_t remaining_size = stdout_size;
+	int bytes_read;
+	do {
+		if (remaining_size == 0) {
+			bytes_read = 0;
+			Sleep(100);
+		} else {
+			bytes_read = _read(output_read_fd, p, remaining_size-1);
+			if (errno != 0 || bytes_read < 0) {
+				warn("Could not read from subprocess stdout.");
+				return false;
+			}
+			fail_unless((size_t) bytes_read < stdout_size, "Unexpectedly long read.");
+			p += bytes_read;
+			remaining_size -= bytes_read;
+			*p = 0;
+		}
+
+		// GetExitCodeProcess: <http://msdn.microsoft.com/en-gb/library/windows/desktop/ms683189(v=vs.85).aspx>
+		BOOL res = GetExitCodeProcess(process_handle, &exit_code);
+		if (!res) {
+			warn("Could not get subprocess exit code.");
+			return false;
+		}
+	} while (bytes_read > 0 && exit_code == STILL_ACTIVE);
+
+	return (exit_code == 0);
 }
 
 void install_python(wchar_t *python_installer_dir) {
@@ -313,6 +404,10 @@ void install_python(wchar_t *python_installer_dir) {
 
 void fail(char *s) {
 	// TODO: show dialog box
-	puts(s);
+	fputs(s, stderr);
 	exit(1);
+}
+
+void warn(char *s) {
+	fputs(s, stderr);
 }
