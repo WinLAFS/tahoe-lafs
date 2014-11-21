@@ -362,7 +362,8 @@ class UpdateVersion(Command):
             print("Warning: no version information found. This may cause tests to fail.")
 
     def try_from_git(self):
-        versions = versions_from_git("allmydata-tahoe-")
+        # If we change APPNAME, the release tag names should also change from then on.
+        versions = versions_from_git(APPNAME + '-')
         if versions:
             version_info = {
                 "pkgname": self.distribution.get_name(),
