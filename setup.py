@@ -351,13 +351,15 @@ class UpdateVersion(Command):
     def finalize_options(self):
         pass
     def run(self):
+        global version
+        verstr = version
         if os.path.isdir(os.path.join(basedir, ".git")):
             verstr = self.try_from_git()
-        else:
-            print("no version-control data found, leaving _version.py alone")
-            return
+
         if verstr:
             self.distribution.metadata.version = verstr
+        else:
+            print("Warning: no version information found. This may cause tests to fail.")
 
     def try_from_git(self):
         versions = versions_from_git("allmydata-tahoe-")
@@ -374,7 +376,7 @@ class UpdateVersion(Command):
             f = open(fn, "wb")
             f.write(GIT_VERSION_PY % version_info)
             f.close()
-            print("git-version: wrote '%s' into '%s'" % (versions["version"], fn))
+            print("Wrote normalized version %r into '%s'" % (versions["normalized"], VERSION_PY_FILENAME))
 
         return versions.get("normalized", None)
 
