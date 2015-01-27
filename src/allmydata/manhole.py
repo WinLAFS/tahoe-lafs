@@ -12,6 +12,8 @@ from twisted.internet import protocol
 
 from zope.interface import implements
 
+from allmydata.util.fileutil import precondition_abspath
+
 # makeTelnetProtocol and _TelnetRealm are for the TelnetManhole
 
 class makeTelnetProtocol:
@@ -63,6 +65,7 @@ class AuthorizedKeysChecker(conchc.SSHPublicKeyDatabase):
     """
 
     def __init__(self, authorized_keys_file):
+        precondition_abspath(authorized_keys_file)
         self.authorized_keys_file = authorized_keys_file
 
     def checkKey(self, credentials):
