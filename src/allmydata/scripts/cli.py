@@ -142,12 +142,9 @@ class GetOptions(FilesystemOptions):
 
         self.from_file = argv_to_unicode(arg1)
 
-        if arg2:
-            self.to_file = argv_to_unicode(arg2)
+        if arg2 and arg2 != "-":
+            self.to_file = argv_to_abspath(arg2)
         else:
-            self.to_file = None
-
-        if self.to_file == "-":
             self.to_file = None
 
     def getSynopsis(self):
@@ -180,17 +177,18 @@ class PutOptions(FilesystemOptions):
     def parseArgs(self, arg1=None, arg2=None):
         # see Examples below
 
+        if arg1 == "-":
+            arg1 = None
+
         if arg1 is not None and arg2 is not None:
-            self.from_file = argv_to_unicode(arg1)
+            self.from_file = argv_to_abspath(arg1)
             self.to_file =  argv_to_unicode(arg2)
         elif arg1 is not None and arg2 is None:
-            self.from_file = argv_to_unicode(arg1) # might be "-"
+            self.from_file = argv_to_abspath(arg1)
             self.to_file = None
         else:
             self.from_file = None
             self.to_file = None
-        if self.from_file == u"-":
-            self.from_file = None
 
         if self['format']:
             if self['format'].upper() not in ("SDMF", "MDMF", "CHK"):
