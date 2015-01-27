@@ -37,7 +37,8 @@ class AccountFileCheckerKeyTests(unittest.TestCase):
     def setUp(self):
         self.account_file = filepath.FilePath(self.mktemp())
         self.account_file.setContent(DUMMY_ACCOUNTS)
-        self.checker = auth.AccountFileChecker(None, self.account_file.path)
+        abspath = abspath_expanduser_unicode(self.account_file.path)
+        self.checker = auth.AccountFileChecker(None, abspath)
 
     def test_unknown_user(self):
         """
