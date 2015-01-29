@@ -507,19 +507,19 @@ class FileUtil(ReallyEqualMixin, unittest.TestCase):
             finally:
                 os.chdir(saved_cwd)
 
-    def test_create_long_filename(self):
-        workdir = u"test_create_long_filename"
+    def test_create_long_path(self):
+        workdir = u"test_create_long_path"
         fileutil.make_dirs(workdir)
-        long_filename = fileutil.abspath_expanduser_unicode(os.path.join(workdir, u'x'*255))
+        long_path = fileutil.abspath_expanduser_unicode(os.path.join(workdir, u'x'*255))
         def _cleanup():
-            fileutil.remove(long_filename)
+            fileutil.remove(long_path)
         self.addCleanup(_cleanup)
 
-        fileutil.write(long_filename, "test")
-        self.failUnless(os.path.exists(long_filename))
-        self.failUnlessEqual(fileutil.read(long_filename), "test")
+        fileutil.write(long_path, "test")
+        self.failUnless(os.path.exists(long_path))
+        self.failUnlessEqual(fileutil.read(long_path), "test")
         _cleanup()
-        self.failIf(os.path.exists(long_filename))
+        self.failIf(os.path.exists(long_path))
 
     def test_windows_expanduser(self):
         def call_windows_getenv(name):
