@@ -3894,7 +3894,7 @@ class Options(ReallyEqualMixin, unittest.TestCase):
         self.failUnlessReallyEqual(o["basedir"], fileutil.abspath_expanduser_unicode(u"there"))
 
         o = self.parse(["start", "here", "--nodaemon"])
-        self.failUnlessEqual(o["basedir"], os.path.abspath("here"))
+        self.failUnlessEqual(o["basedir"], fileutil.abspath_expanduser_unicode(u"here"))
 
         self.failUnlessRaises(usage.UsageError, self.parse,
                               ["--basedir", "there", "start"])
