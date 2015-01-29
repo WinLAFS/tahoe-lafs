@@ -358,6 +358,9 @@ def to_windows_long_path(path):
     # replace it with '\' here.
     path = path.replace(u"/", u"\\")
 
+    # Note that other normalizations such as removing '.' and '..' should
+    # be done outside this function.
+
     if path.startswith(u"\\\\?\\") or path.startswith(u"\\\\.\\"):
         return path
     elif path.startswith(u"\\\\"):
