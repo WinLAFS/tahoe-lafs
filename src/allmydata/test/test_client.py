@@ -3,7 +3,8 @@ from twisted.trial import unittest
 from twisted.application import service
 
 import allmydata
-from allmydata.node import Node, OldConfigError, OldConfigOptionError, MissingConfigEntry, UnescapedHashError
+from allmydata.node import Node, InvalidValueError, OldConfigError, \
+     OldConfigOptionError, MissingConfigEntry, UnescapedHashError
 from allmydata.frontends.auth import NeedRootcapLookupScheme
 from allmydata import client
 from allmydata.storage_client import StorageFarmBroker
@@ -174,7 +175,7 @@ class Basic(testutil.ReallyEqualMixin, unittest.TestCase):
                            "[storage]\n" + \
                            "enabled = true\n" + \
                            "reserved_space = bogus\n")
-        self.failUnlessRaises(ValueError, client.Client, basedir)
+        self.failUnlessRaises(InvalidValueError, client.Client, basedir)
 
     def test_web_staticdir(self):
         basedir = u"client.Basic.test_web_staticdir"
