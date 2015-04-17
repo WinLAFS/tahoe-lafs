@@ -46,6 +46,12 @@ install_requires = [
 
     # pycryptopp-0.6.0 includes ed25519
     "pycryptopp >= 0.6.0",
+
+    # needed for cloud backend
+    "txAWS == 0.2.1.post5",
+
+    # needed for cloud backend; also latest cryptography depends on this version
+    "six >= 1.4.1",
 ]
 
 # Includes some indirect dependencies, but does not include allmydata.
@@ -65,6 +71,9 @@ package_imports = [
     ('pycrypto',         'Crypto'),
     ('pyasn1',           'pyasn1'),
     ('mock',             'mock'),
+    ('txAWS',            'txaws'),
+    ('python-dateutil',  'dateutil'),
+    ('six',              'six'),
 ]
 
 # Dependencies for which we don't know how to get a version number at run-time.
@@ -205,7 +214,6 @@ if _can_use_pyOpenSSL_0_14:
         #
         "cryptography",
         "cffi >= 0.8",          # latest cryptography depends on this version
-        "six >= 1.4.1",         # latest cryptography depends on this version
         "enum34",               # latest cryptography depends on this
         "pycparser",            # cffi depends on this
     ]
@@ -213,7 +221,6 @@ if _can_use_pyOpenSSL_0_14:
     package_imports += [
         ('cryptography',     'cryptography'),
         ('cffi',             'cffi'),
-        ('six',              'six'),
         ('enum34',           'enum'),
         ('pycparser',        'pycparser'),
     ]
