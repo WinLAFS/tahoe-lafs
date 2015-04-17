@@ -108,6 +108,8 @@ if not hasattr(sys, 'frozen'):
 # Splitting the dependencies for Windows and non-Windows helps to fix
 # <https://tahoe-lafs.org/trac/tahoe-lafs/ticket/2249> and
 # <https://tahoe-lafs.org/trac/tahoe-lafs/ticket/2028>.
+# However, this is only a short-term fix for Windows because it forces
+# us to depend on a single, quite old, version of Twisted.
 
 if sys.platform == "win32":
     install_requires += [
@@ -115,16 +117,17 @@ if sys.platform == "win32":
         #   dependency on pywin32.
         # * We also need Twisted 10.1 for the FTP frontend in order for
         #   Twisted's FTP server to support asynchronous close.
-        # * When the cloud backend lands, it will depend on Twisted 10.2.0
-        #   which includes the fix to <https://twistedmatrix.com/trac/ticket/411>.
+        # * Twisted 10.2.0 includes the fix to <https://twistedmatrix.com/trac/ticket/411>.
         # * The SFTP frontend depends on Twisted 11.0.0 to fix the SSH server
         #   rekeying bug <https://twistedmatrix.com/trac/ticket/4395>
         # * The FTP frontend depends on Twisted >=11.1.0 for
         #   filepath.Permissions
+        # * The cloud backend depends on Twisted 12.1.0 for HTTPConnectionPool.
+        # * IPv6 support will also depend on Twisted 12.1.0.
         # * We don't want Twisted >= 12.2.0 to avoid a dependency of its endpoints
         #   code on pywin32. <https://tahoe-lafs.org/trac/tahoe-lafs/ticket/2028>
         #
-        "Twisted >= 11.1.0, <= 12.1.0",
+        "Twisted == 12.1.0",
 
         # * We need Nevow >= 0.9.33 to avoid a bug in Nevow's setup.py
         #   which imported twisted at setup time.
