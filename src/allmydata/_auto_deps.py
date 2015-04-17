@@ -51,8 +51,8 @@ install_requires = [
     "txAWS == 0.2.1.post5",
     "oauth2client == 1.1.0",
 
-    # needed for cloud backend; also latest cryptography depends on this version
-    "six >= 1.4.1",
+    # needed for cloud backend; also latest pyOpenSSL depends on this version
+    "six >= 1.5.2",
 ]
 
 # Includes some indirect dependencies, but does not include allmydata.
@@ -84,6 +84,7 @@ not_import_versionable = [
     'mock',
     'pyasn1',
     'pyasn1-modules',
+    'python-gflags',
 ]
 
 # Dependencies reported by pkg_resources that we can safely ignore.
