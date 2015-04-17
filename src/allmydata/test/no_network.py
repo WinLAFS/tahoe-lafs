@@ -404,7 +404,7 @@ class GridTestMixin:
             if i_shnum in shnums:
                 os.unlink(i_sharefile)
 
-    def delete_all_shares(self, serverdir):
+    def empty_sharedir(self, serverdir):
         sharedir = os.path.join(serverdir, "shares")
         for prefixdir in os.listdir(sharedir):
             if prefixdir != 'incoming':
