@@ -1,10 +1,11 @@
-import os.path
+
 import simplejson
+
 from twisted.trial import unittest
 from cStringIO import StringIO
 
 from allmydata import uri
-from allmydata.util import base32
+from allmydata.util import base32, fileutil
 from allmydata.util.encodingutil import quote_output, to_str
 from allmydata.mutable.publish import MutableData
 from allmydata.immutable import upload

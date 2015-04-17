@@ -7,7 +7,6 @@ from twisted.internet import defer, reactor
 from allmydata import uri, client
 from allmydata.nodemaker import NodeMaker
 from allmydata.util import base32, consumer, fileutil, mathutil
-from allmydata.util.fileutil import abspath_expanduser_unicode
 from allmydata.util.hashutil import tagged_hash, ssk_writekey_hash, \
      ssk_pubkey_fingerprint_hash
 from allmydata.util.consumer import MemoryConsumer
