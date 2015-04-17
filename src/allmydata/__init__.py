@@ -226,10 +226,14 @@ def get_package_versions_and_locations():
 
 
 def check_requirement(req, vers_and_locs):
-    # We support only conjunctions of <=, >=, and !=
+    # We support only conjunctions of <=, >=, ==, and !=
 
     reqlist = req.split(',')
-    name = reqlist[0].split('<=')[0].split('>=')[0].split('!=')[0].strip(' ').split('[')[0]
+    name = (reqlist[0].split('<=')[0]
+                      .split('>=')[0]
+                      .split('==')[0]
+                      .split('!=')[0]
+                      .strip(' ').split('[')[0])
     if name not in vers_and_locs:
         raise PackagingError("no version info for %s" % (name,))
     if req.strip(' ') == name:
@@ -253,25 +257,20 @@ def check_requirement(req, vers_and_locs):
 
 def match_requirement(req, reqlist, actualver):
     for r in reqlist:
-        s = r.split('<=')
-        if len(s) == 2:
-            required = s[1].strip(' ')
-            if not (actualver <= normalized_version(required, what="required maximum version %r in %r" % (required, req))):
-                return False  # maximum requirement not met
-        else:
-            s = r.split('>=')
+        for op, compare, desc in [('<=', lambda x, y: x <= y, "required maximum version"),
+                                  ('>=', lambda x, y: x >= y, "required minimum version"),
+                                  ('==', lambda x, y: x == y, "required exact version"),
+                                  ('!=', lambda x, y: x != y, "excluded version"),
+                                  (None, None, None)]:
+            if op is None:
+                raise PackagingError("no version info or could not understand requirement %r" % (req,))
+            s = r.split(op)
             if len(s) == 2:
                 required = s[1].strip(' ')
-                if not (actualver >= normalized_version(required, what="required minimum version %r in %r" % (required, req))):
-                    return False  # minimum requirement not met
-            else:
-                s = r.split('!=')
-                if len(s) == 2:
-                    required = s[1].strip(' ')
-                    if not (actualver != normalized_version(required, what="excluded version %r in %r" % (required, req))):
-                        return False  # not-equal requirement not met
+                if not compare(actualver, normalized_version(required, what="%s %r in %r" % (desc, required, req))):
+                    return False  # requirement not met
                 else:
-                    raise PackagingError("no version info or could not understand requirement %r" % (req,))
+                    break  # next requirement from reqlist
 
     return True
 

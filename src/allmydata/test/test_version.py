@@ -18,6 +18,7 @@ class CheckRequirement(unittest.TestCase):
         self._check_success("pycrypto >= 2.1.0, != 2.2, != 2.4", {"pycrypto": ("2.4.1", "", None)})
         self._check_success("Twisted >= 11.0.0, <= 12.2.0", {"Twisted": ("11.0.0", "", None)})
         self._check_success("Twisted >= 11.0.0, <= 12.2.0", {"Twisted": ("12.2.0", "", None)})
+        self._check_success("oauth2client == 1.1.0", {"oauth2client": ("1.1.0", "", None)})
 
         self._check_success("zope.interface", {"zope.interface": ("unknown", "", None)})
         self._check_success("mock", {"mock": ("0.6.0", "", None)})
@@ -36,6 +37,7 @@ class CheckRequirement(unittest.TestCase):
         self._check_failure("pycrypto >= 2.1.0, != 2.2, != 2.4", {"pycrypto": ("2.0.0", "", None)})
         self._check_failure("Twisted >= 11.0.0, <= 12.2.0", {"Twisted": ("10.2.0", "", None)})
         self._check_failure("Twisted >= 11.0.0, <= 12.2.0", {"Twisted": ("13.0.0", "", None)})
+        self._check_failure("oauth2client == 1.1.0", {"oauth2client": ("1.0.0", "", None)})
         self._check_failure("foo >= 1.0", {})
         self._check_failure("foo >= 1.0", {"foo": ("irrational", "", None)})
 

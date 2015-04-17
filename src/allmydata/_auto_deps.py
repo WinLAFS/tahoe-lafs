@@ -9,11 +9,12 @@
 # under both the old and new semantics. That can be achieved by limiting
 # requirement specs to one of the following forms:
 #
+#   * == X
 #   * >= X, <= Y where X < Y
 #   * >= X, != Y, != Z, ... where X < Y < Z...
 #
 # (In addition, check_requirement in allmydata/__init__.py only supports
-# >=, <= and != operators.)
+# >=, <=, ==, and != operators.)
 
 install_requires = [
     # We require newer versions of setuptools (actually
@@ -84,7 +85,6 @@ not_import_versionable = [
     'mock',
     'pyasn1',
     'pyasn1-modules',
-    'python-gflags',
 ]
 
 # Dependencies reported by pkg_resources that we can safely ignore.
@@ -96,6 +96,8 @@ ignorable = [
     'twisted-web',
     'twisted-core',
     'twisted-conch',
+    'python-gflags',
+    'httplib2',
 ]
 
 import sys
